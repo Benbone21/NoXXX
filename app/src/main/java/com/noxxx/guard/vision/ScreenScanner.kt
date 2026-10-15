@@ -1,0 +1,124 @@
+package com.noxxx.guard.vision
+
+import android.accessibilityservice.AccessibilityService
+import android.graphics.Bitmap
+import android.os.Build
+import android.util.Log
+import android.view.Display
+import androidx.annotation.RequiresApi
+import com.noxxx.guard.policy.Sensitivity
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+
+data class ScanResult(val flagged: Boolean, val blank: Boolean)
+
+/**
+ * Takes a screenshot through the accessibility service (Android 11+), shrinks it, and classifies
+ * overlapping square tiles so tall phone screens aren't distorted. Everything stays on-device.
+ */
+@RequiresApi(Build.VERSION_CODES.R)
+class ScreenScanner(private val service: AccessibilityService) {
+    private val executor = Executors.newSingleThreadExecutor()
+    private val busy = AtomicBoolean(false)
+    private var classifier: ImageClassifier? = null
+
+    fun scan(sensitivity: Sensitivity, onResult: (ScanResult) -> Unit) {
+        if (!busy.compareAndSet(false, true)) return
+        try {
+            service.takeScreenshot(Display.DEFAULT_DISPLAY, executor, object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                    try {
+                        analyze(result, sensitivity)?.let(onResult)
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "analysis failed", e)
+                    } finally {
+                        busy.set(false)
+                    }
+                }
+
+                override fun onFailure(errorCode: Int) {
+                    busy.set(false)
+                }
+            })
+        } catch (e: Throwable) {
+            busy.set(false)
+        }
+    }
+
+    private fun analyze(result: AccessibilityService.ScreenshotResult, sensitivity: Sensitivity): ScanResult? {
+        val buffer = result.hardwareBuffer
+        val software = try {
+            val hw = Bitmap.wrapHardwareBuffer(buffer, result.colorSpace) ?: return null
+            hw.copy(Bitmap.Config.ARGB_8888, false).also { hw.recycle() }
+        } finally {
+            buffer.close()
+        }
+        val model = classifier ?: ImageClassifier(service).also {
+            classifier = it
+            Log.i(TAG, "image model loaded (${it.inputWidth}x${it.inputHeight})")
+        }
+        val side = model.inputWidth
+        try {
+            // Scale so the short edge matches the model input, then walk tiles along the long edge.
+            val scale = side.toFloat() / minOf(software.width, software.height)
+            val w = maxOf(side, (software.width * scale).roundToInt())
+            val h = maxOf(side, (software.height * scale).roundToInt())
+            val small = Bitmap.createScaledBitmap(software, w, h, true)
+            try {
+                if (isBlank(small)) return ScanResult(flagged = false, blank = true)
+                val pixels = IntArray(side * side)
+                var combined: Scores? = null
+                for ((x, y) in tileOrigins(w, h, side)) {
+                    small.getPixels(pixels, 0, side, x, y, side, side)
+                    val s = model.classify(pixels)
+                    combined = combined?.let { Scores.max(it, s) } ?: s
+                    if (s.isFlagged(sensitivity)) break
+                }
+                return ScanResult(flagged = combined?.isFlagged(sensitivity) == true, blank = false)
+            } finally {
+                if (small !== software) small.recycle()
+            }
+        } finally {
+            software.recycle()
+        }
+    }
+
+    /** Secure windows (e.g. private tabs) come back solid black. Ignores the top/bottom bars. */
+    private fun isBlank(bmp: Bitmap): Boolean {
+        val top = bmp.height / 10
+        val bottom = bmp.height - bmp.height / 10
+        var dark = 0
+        var total = 0
+        var y = top
+        while (y < bottom) {
+            var x = 0
+            while (x < bmp.width) {
+                val px = bmp.getPixel(x, y)
+                if (((px shr 16) and 0xFF) < 10 && ((px shr 8) and 0xFF) < 10 && (px and 0xFF) < 10) dark++
+                total++
+                x += 8
+            }
+            y += 8
+        }
+        return total > 0 && dark >= total * 0.98
+    }
+
+    fun close() {
+        executor.execute { classifier?.close(); classifier = null }
+        executor.shutdown()
+    }
+
+    private companion object {
+        const val TAG = "ScreenScanner"
+
+        fun tileOrigins(w: Int, h: Int, side: Int): List<Pair<Int, Int>> {
+            val vertical = h >= w
+            val long = if (vertical) h else w
+            val count = ceil(long.toFloat() / side).toInt().coerceAtLeast(1)
+            val step = if (count == 1) 0 else (long - side) / (count - 1)
+            return (0 until count).map { i -> if (vertical) 0 to i * step else i * step to 0 }
+        }
+    }
+}

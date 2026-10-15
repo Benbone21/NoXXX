@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NoXXX</string>
+    <string name="a11y_description">NoXXX uses Accessibility to check browser addresses against its blocklist, close blocked apps, scan the screen on-device for explicit images, and stop its own protection from being switched off during a cool-off. Nothing is sent off your device.</string>
+    <string name="admin_description">Prevents NoXXX from being uninstalled without completing the cool-off first.</string>
+    <string name="settings_locked_toast">That NoXXX setting is locked. Request an unlock in NoXXX to change it.</string>
+    <string name="admin_disable_warning">Turning this off removes uninstall protection. Use the cool-off in NoXXX instead.</string>
+</resources>
