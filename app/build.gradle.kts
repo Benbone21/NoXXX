@@ -22,13 +22,21 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../noxxx-release.keystore")
+            storePassword = "REDACTED"
+            keyAlias = "noxxx"
+            keyPassword = "REDACTED"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Sideloaded app: sign release with the debug key so it installs without extra setup.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
