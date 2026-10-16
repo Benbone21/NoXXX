@@ -1,0 +1,31 @@
+# Draft build metadata for F-Droid's fdroiddata repository (metadata/com.noxxx.guard.yml).
+# Submit it as a merge request to https://gitlab.com/fdroid/fdroiddata (see docs/fdroid/README.md).
+AntiFeatures:
+  NonFreeNet:
+    en-US: Reads the current time from google.com and cloudflare.com, and asks you to set a third-party
+      family-filter DNS service (Cloudflare for Families or CleanBrowsing) as Android's Private DNS.
+Categories:
+  - Security
+License: GPL-3.0-or-later
+AuthorName: Benbone21
+SourceCode: https://github.com/Benbone21/NoXXX
+IssueTracker: https://github.com/Benbone21/NoXXX/issues
+Changelog: https://github.com/Benbone21/NoXXX/releases
+
+AutoName: NoXXX
+
+RepoType: git
+Repo: https://github.com/Benbone21/NoXXX.git
+
+Builds:
+  - versionName: 1.0.1
+    versionCode: 2
+    commit: v1.0.1
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.1
+CurrentVersionCode: 2

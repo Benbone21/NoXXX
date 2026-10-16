@@ -5,6 +5,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Release signing reads the key from outside the repository: ~/.gradle/gradle.properties or environment
+// variables (NOXXX_STORE_FILE, NOXXX_STORE_PASSWORD, NOXXX_KEY_ALIAS, NOXXX_KEY_PASSWORD). Without them the
+// release APK is left unsigned, which is what F-Droid expects: it signs with its own key.
+fun secret(name: String): String? = providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull
+val releaseStoreFile = secret("NOXXX_STORE_FILE")
+
 android {
     namespace = "com.noxxx.guard"
     compileSdk = 35
@@ -13,8 +19,8 @@ android {
         applicationId = "com.noxxx.guard"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         ndk {
             // Phones plus 64-bit emulators; drops rarely used 32-bit x86 to keep the APK smaller.
@@ -23,11 +29,13 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("../noxxx-release.keystore")
-            storePassword = "REDACTED"
-            keyAlias = "noxxx"
-            keyPassword = "REDACTED"
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = secret("NOXXX_STORE_PASSWORD")
+                keyAlias = secret("NOXXX_KEY_ALIAS") ?: "noxxx"
+                keyPassword = secret("NOXXX_KEY_PASSWORD")
+            }
         }
     }
 
@@ -36,7 +44,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
@@ -52,6 +60,11 @@ android {
     }
     androidResources {
         noCompress += "tflite"
+    }
+    // Leave out AGP's encrypted dependency report: only Google can read it, and F-Droid's scanner rejects it.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 }
 

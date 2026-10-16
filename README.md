@@ -7,6 +7,12 @@
 An Android app that blocks adult content on your own phone. It doesn't need a VPN, so it works
 alongside a VPN you already use.
 
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home tab with protection on">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Choosing protections in the setup guide">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Lock and cool-off tab">
+</p>
+
 | Layer | How it works |
 |---|---|
 | **Websites** | Android's Private DNS is pointed at a family filter (Cloudflare for Families by default), which filters every app. CleanBrowsing Family also forces SafeSearch, but its servers can fail to load normal sites such as Canvas and Okta logins. On top of that, supported browsers' address bars are checked against a bundled list of 76,798 domains, plus your own sites and words. |
@@ -21,15 +27,42 @@ alongside a VPN you already use.
 | **Extras** | Block history, optional app PIN. |
 | **Look** | Material You (Material 3): colors follow your wallpaper on Android 12+, light/dark follows the system, themed launcher icon. |
 
+## Install
+
+1. Download the APK from the [latest release](https://github.com/Benbone21/NoXXX/releases/latest).
+2. Allow your browser or file manager to install unknown apps when Android asks, then open the APK.
+3. Follow the setup guide that opens on first launch.
+
+Official releases are signed with this certificate (SHA-256). Apps like
+[AppVerifier](https://github.com/soupslurpr/AppVerifier) can check it:
+
+```
+7F:A4:C1:3C:0C:AD:21:F6:7D:00:85:65:70:D8:33:D7:6C:3D:3A:FD:28:08:B3:86:0F:F4:02:9F:A5:E7:43:07
+```
+
 ## Build
 
-1. Open this folder in **Android Studio** (Ladybug or newer) and let Gradle sync.
-2. Use **Run ▶** with your phone connected, or **Build → Build App Bundle(s) / APK(s) → Build APK(s)**.
-   - The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-   - The release build is signed with the debug key so it can be sideloaded without extra setup.
-3. Unit tests: `./gradlew testDebugUnitTest`
+Needs JDK 17 or newer and the Android SDK. Android Studio is optional; everything builds from the command line.
 
-Toolchain: AGP 8.7.3, Gradle 8.11.1, Kotlin 2.1.0, compileSdk/targetSdk 35, minSdk 28 (Android 9).
+```
+./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
+./gradlew testDebugUnitTest      # unit tests
+./gradlew assembleRelease        # app/build/outputs/apk/release/
+```
+
+The release APK is only signed when a key is configured outside the repository, in
+`~/.gradle/gradle.properties` or as environment variables:
+
+```
+NOXXX_STORE_FILE=/path/to/release.jks
+NOXXX_STORE_PASSWORD=...
+NOXXX_KEY_ALIAS=noxxx
+NOXXX_KEY_PASSWORD=...
+```
+
+Without them, `assembleRelease` produces an unsigned APK (this is what F-Droid builds and signs itself).
+
+Toolchain: AGP 8.13.2, Gradle 8.13, Kotlin 2.1.0, compileSdk/targetSdk 35, minSdk 28 (Android 9).
 Image detection needs Android 11 (API 30) or newer.
 
 ## Phone setup
@@ -152,3 +185,15 @@ app/src/main/assets/
 - Word list: [dsojevic/profanity-list](https://github.com/dsojevic/profanity-list) (MIT), filtered as described above; [google-10000-english](https://github.com/first20hours/google-10000-english) is used at build time only
 - Image model: [GantMan/nsfw_model](https://github.com/GantMan/nsfw_model) MobileNetV2 224 (MIT)
 - DNS filtering: [CleanBrowsing](https://cleanbrowsing.org) and [Cloudflare for Families](https://one.one.one.one/family/)
+
+## License
+
+Copyright (C) 2026 Benbone21
+
+NoXXX is free software: you can redistribute it and/or modify it under the terms of the
+[GNU General Public License](LICENSE) as published by the Free Software Foundation, either version 3
+of the License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the [license](LICENSE) for details.
+
+The bundled domain list, word list and image model keep their own MIT licenses (see Credits).

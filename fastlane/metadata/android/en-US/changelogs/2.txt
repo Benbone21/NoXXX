@@ -1,0 +1,5 @@
+First open-source release, under GPL-3.0.
+
+Release builds are now signed with a new key. If you installed 1.0.0 from GitHub, uninstall it first (Lock tab, full unlock), then install this version.
+
+Fixes: a partner unlock now lets you change settings too. Also: Cloudflare for Families is the default DNS filter, the setup guide can't be reopened once protection starts, an accountability partner can only be added during setup, and app lists load faster.

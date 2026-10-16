@@ -1,0 +1,39 @@
+<p>NoXXX blocks adult content on your own phone. It works without a VPN, so it runs alongside a VPN you already use. Everything runs on the device: nothing is uploaded.</p>
+
+<p><b>Layers of protection</b></p>
+<ul>
+<li><b>Websites:</b> Android's Private DNS is pointed at a family filter (Cloudflare for Families by default), which filters every app. Supported browsers' address bars are also checked against a bundled list of about 77,000 adult domains, plus your own sites.</li>
+<li><b>Searches:</b> a built-in list of blocked words and phrases is checked against address bars and app search boxes. Matching is whole-word only, so normal words that contain a blocked word aren't caught.</li>
+<li><b>Images:</b> on Android 11+, an on-device MobileNetV2 model checks a shrunken copy of the screen about every 1.5 seconds and covers explicit content.</li>
+<li><b>Apps:</b> block any app, plus browsers NoXXX can't monitor and private/incognito tabs. Essential apps (phone, texts, clock, app stores, password managers, authenticators, maps) can never be blocked by mistake, and you can add your own, such as your bank.</li>
+</ul>
+
+<p><b>A lock that gives urges time to pass</b></p>
+<ul>
+<li>Once protection starts, you can always view your stats and add protection, but loosening anything needs an unlock: request it, wait out a cool-off (1 hour to 7 days), then get 15 minutes to make changes.</li>
+<li>Uninstalling needs a separate full unlock with a 7-day cool-off.</li>
+<li>Lockdown freezes every setting for 1 to 90 days. It can be extended but never shortened.</li>
+<li>An optional accountability partner's password, set during setup only, can unlock immediately.</li>
+<li>Timers count real time, so changing the clock or rebooting doesn't skip the wait.</li>
+<li>Tamper protection closes only the system screens that could switch NoXXX off, so the rest of Settings stays usable.</li>
+</ul>
+
+<p><b>Also</b></p>
+<ul>
+<li>Streaks, block counts and a 7-day chart.</li>
+<li>Optional app PIN.</li>
+<li>Material You design that follows your wallpaper colors and dark mode.</li>
+</ul>
+
+<p><b>Permissions</b></p>
+<ul>
+<li><b>Accessibility service:</b> reads browser addresses and search boxes, closes blocked apps, takes screenshots for on-device image checks, and guards NoXXX's own settings screens. It never reads passwords or sends anything off the phone.</li>
+<li><b>Device admin:</b> only used to prevent quick uninstalls.</li>
+<li><b>Network:</b> HEAD requests to google.com and cloudflare.com to read the current time, so timers can't be skipped by rebooting.</li>
+<li><b>Optional:</b> granting WRITE_SECURE_SETTINGS over adb lets NoXXX switch Private DNS back on by itself.</li>
+</ul>
+
+<p><b>Limits</b></p>
+<p>No non-root app can stop safe mode, a factory reset or adb. Image detection is a statistical model, so expect occasional misses and false alarms.</p>
+
+<p>This app was generated with AI (Claude), then reviewed, refined and used daily by the developer. It has been tested on a Samsung Galaxy S24 (Android 15).</p>

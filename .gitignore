@@ -8,3 +8,10 @@
 /captures/
 .externalNativeBuild/
 .cxx/
+.kotlin/
+# Signing keys and their passwords never belong in the repository.
+*.jks
+*.keystore
+keystore.properties
+# Personal Claude Code settings
+.claude/settings.local.json
