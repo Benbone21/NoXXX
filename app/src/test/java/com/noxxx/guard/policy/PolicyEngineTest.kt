@@ -126,6 +126,13 @@ class PolicyEngineTest {
         assertEquals(0, p.lockdownRemainingMs)
     }
 
+    @Test fun openFullUnlockAlsoAllowsEditingSettings() {
+        val requested = PolicyEngine.requestFullUnlock(locked)!!
+        val open = PolicyEngine.openFullUnlock(PolicyEngine.advance(requested, PolicyEngine.FULL_UNLOCK_COOL_OFF_MS))!!
+        assertTrue(open.tamperShieldOff)
+        assertTrue("a full unlock covers everything a settings unlock does", open.settingsEditable)
+    }
+
     @Test fun partnerPasswordCanBeAddedDuringSetup() {
         assertTrue(PolicyEngine.canAddPartner(GuardState()))
     }

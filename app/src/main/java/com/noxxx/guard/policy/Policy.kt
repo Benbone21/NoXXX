@@ -148,8 +148,8 @@ data class GuardState(
     val tamperEvents: List<TamperEvent> = emptyList(),
     val tamperCount: Int = 0,
 ) {
-    /** Settings can be loosened only during setup or inside an open unlock window. */
-    val settingsEditable get() = !committed || unlock?.isOpen == true
+    /** Settings can be loosened only during setup or inside an open unlock window (settings or full). */
+    val settingsEditable get() = !committed || unlock?.isOpen == true || fullUnlock?.isOpen == true
     /** TamperShield is off only during an open full-unlock window. */
     val tamperShieldOff get() = !committed || fullUnlock?.isOpen == true
 }
