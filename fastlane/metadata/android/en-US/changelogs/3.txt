@@ -1,0 +1,5 @@
+- Every block now shows why it happened, and Home can export a diagnostics file with the details.
+- Image detection is much less trigger-happy: no blocks on "suggestive" alone, higher thresholds, and two scans in a row needed.
+- Anti-screenshot detection is exact on Android 14+, so dark apps aren't mistaken for private tabs.
+- New: custom NextDNS / Control D filter, checked to still block adult sites.
+- New: "Secure screens allowed" list; Duo, authenticators and VPN apps allowed.

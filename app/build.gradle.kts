@@ -19,8 +19,8 @@ android {
         applicationId = "com.noxxx.guard"
         minSdk = 28
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
 
         ndk {
             // Phones plus 64-bit emulators; drops rarely used 32-bit x86 to keep the APK smaller.

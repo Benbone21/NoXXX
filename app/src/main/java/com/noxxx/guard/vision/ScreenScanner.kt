@@ -8,6 +8,7 @@ import android.view.Display
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
 import com.noxxx.guard.policy.Sensitivity
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.ceil
@@ -33,6 +34,13 @@ data class ScanResult(
 @RequiresApi(Build.VERSION_CODES.R)
 class ScreenScanner(private val service: AccessibilityService) {
     private val executor = Executors.newSingleThreadExecutor()
+
+    /**
+     * Where Android delivers screenshot results. A screenshot can still be in flight when the service
+     * stops; delivering it to the shut-down [executor] would throw on the main thread and crash the app,
+     * so late results are dropped instead.
+     */
+    private val callbacks = Executor { task -> if (!executor.isShutdown) runCatching { executor.execute(task) } }
     private val busy = AtomicBoolean(false)
     private var classifier: ImageClassifier? = null
 
@@ -42,7 +50,7 @@ class ScreenScanner(private val service: AccessibilityService) {
             appWindowId()?.let { return scanWindow(it, sensitivity, onResult) }
         }
         try {
-            service.takeScreenshot(Display.DEFAULT_DISPLAY, executor, object : AccessibilityService.TakeScreenshotCallback {
+            service.takeScreenshot(Display.DEFAULT_DISPLAY, callbacks, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                     try {
                         analyze(result, sensitivity, guessBlank = true)?.let(onResult)
@@ -73,7 +81,7 @@ class ScreenScanner(private val service: AccessibilityService) {
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun scanWindow(windowId: Int, sensitivity: Sensitivity, onResult: (ScanResult) -> Unit) {
         try {
-            service.takeScreenshotOfWindow(windowId, executor, object : AccessibilityService.TakeScreenshotCallback {
+            service.takeScreenshotOfWindow(windowId, callbacks, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                     try {
                         analyze(result, sensitivity, guessBlank = false)?.let(onResult)
