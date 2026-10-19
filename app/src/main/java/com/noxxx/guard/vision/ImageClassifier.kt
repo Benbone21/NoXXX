@@ -18,10 +18,12 @@ class Scores(private val p: FloatArray) {
 
     private fun at(i: Int) = p.getOrElse(i) { 0f }
 
+    // "Suggestive" alone fires on ordinary photos of people (faces, skin, clothes), so it never
+    // blocks by itself; it only tips a borderline explicit score over the line in Strict.
     fun isFlagged(s: Sensitivity) = when (s) {
-        Sensitivity.RELAXED -> explicit >= 0.85f
-        Sensitivity.BALANCED -> explicit >= 0.70f || suggestive >= 0.92f
-        Sensitivity.STRICT -> explicit >= 0.50f || explicit + suggestive >= 0.70f
+        Sensitivity.RELAXED -> explicit >= 0.90f
+        Sensitivity.BALANCED -> explicit >= 0.80f
+        Sensitivity.STRICT -> explicit >= 0.60f || (explicit >= 0.30f && explicit + suggestive >= 0.85f)
     }
 
     companion object {
@@ -31,7 +33,8 @@ class Scores(private val p: FloatArray) {
         const val EXPLICIT = 3
         const val SUGGESTIVE = 4
 
-        fun max(a: Scores, b: Scores) = Scores(FloatArray(maxOf(a.p.size, b.p.size)) { i -> maxOf(a.at(i), b.at(i)) })
+        /** Each tile must earn a block on its own; scores from different tiles are never combined. */
+        fun anyFlagged(tiles: List<Scores>, s: Sensitivity) = tiles.any { it.isFlagged(s) }
     }
 }
 

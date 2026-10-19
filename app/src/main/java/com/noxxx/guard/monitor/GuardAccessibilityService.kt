@@ -258,7 +258,8 @@ class GuardAccessibilityService : AccessibilityService() {
             blankFrames = 0
             flaggedFrames = if (r.flagged) flaggedFrames + 1 else 0
         }
-        val needed = if (s == Sensitivity.STRICT) 1 else 2
+        // Consecutive flagged scans (~1.5 s apart) before blocking, so one odd frame while scrolling can't.
+        val needed = if (s == Sensitivity.RELAXED) 3 else 2
         when {
             wantImage && flaggedFrames >= needed -> block(BlockKind.IMAGE, label(pkg))
             wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg))

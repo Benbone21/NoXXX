@@ -108,14 +108,15 @@ class ScreenScanner(private val service: AccessibilityService) {
             try {
                 if (guessBlank && isBlank(small)) return ScanResult(flagged = false, blank = true)
                 val pixels = IntArray(side * side)
-                var combined: Scores? = null
+                var flagged = false
                 for ((x, y) in tileOrigins(w, h, side)) {
                     small.getPixels(pixels, 0, side, x, y, side, side)
-                    val s = model.classify(pixels)
-                    combined = combined?.let { Scores.max(it, s) } ?: s
-                    if (s.isFlagged(sensitivity)) break
+                    if (model.classify(pixels).isFlagged(sensitivity)) {
+                        flagged = true
+                        break
+                    }
                 }
-                return ScanResult(flagged = combined?.isFlagged(sensitivity) == true, blank = false)
+                return ScanResult(flagged = flagged, blank = false)
             } finally {
                 if (small !== software) small.recycle()
             }
