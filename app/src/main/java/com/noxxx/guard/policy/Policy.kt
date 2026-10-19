@@ -19,6 +19,15 @@ object PrivateDnsProviders {
     const val DEFAULT = "family.cloudflare-dns.com"
 
     fun isApproved(host: String?) = host != null && host.lowercase().trimEnd('.') in all
+
+    /**
+     * A personal NextDNS or Control D hostname: a filter whose blocklist and allow list the user controls,
+     * so sites like torrent indexes can be allowed while porn stays blocked. Only counts as filtering
+     * while [com.noxxx.guard.web.DnsCanary] confirms it really blocks adult sites.
+     */
+    private val CUSTOM = Regex("^[a-z0-9-]+\\.dns\\.(nextdns\\.io|controld\\.com)$")
+
+    fun isCustom(host: String?) = host != null && CUSTOM.matches(host.lowercase().trimEnd('.'))
 }
 
 /**
@@ -47,6 +56,8 @@ data class Policy(
     val imageScan: Boolean = true,
     val sensitivity: Sensitivity = Sensitivity.BALANCED,
     val imageScanExemptApps: Set<String> = emptySet(),
+    /** Apps whose anti-screenshot (secure) screens aren't treated as private browsing. Adding one is a loosening. */
+    val secureScreenAllowedApps: Set<String> = emptySet(),
     /** Also run image detection in messaging and video-call apps (off by default; they false-alarm on your own camera). */
     val scanMessagingApps: Boolean = false,
     val tamperProtection: Boolean = true,
@@ -86,6 +97,8 @@ data class Policy(
             ?.let { add("Add ${it.size} app(s) to the never-block list") }
         (imageScanExemptApps - old.imageScanExemptApps).takeIf { it.isNotEmpty() }
             ?.let { add("Skip image detection in ${it.size} app(s)") }
+        (secureScreenAllowedApps - old.secureScreenAllowedApps).takeIf { it.isNotEmpty() }
+            ?.let { add("Allow secure screens in ${it.size} app(s)") }
         if (sensitivity < old.sensitivity) {
             add("Lower image sensitivity to ${sensitivity.name.lowercase()}")
         }

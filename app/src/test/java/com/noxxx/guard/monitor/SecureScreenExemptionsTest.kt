@@ -19,6 +19,16 @@ class SecureScreenExemptionsTest {
         assertFalse(SecureScreenExemptions.isExempt("com.sec.android.app.sbrowser", isSystemApp = true, isBrowser = true))
     }
 
+    @Test fun twoFactorAndVpnAppsAreExempt() {
+        assertTrue(SecureScreenExemptions.isExempt("com.duosecurity.duomobile", isSystemApp = false, isBrowser = false))
+        assertTrue(SecureScreenExemptions.isExempt("com.zaneschepke.wireguardautotunnel", isSystemApp = false, isBrowser = false))
+        assertTrue(SecureScreenExemptions.isExempt("com.azure.authenticator", isSystemApp = false, isBrowser = false))
+    }
+
+    @Test fun appsTheUserAllowedAreExempt() {
+        assertTrue(SecureScreenExemptions.isExempt("com.example.notes", false, false, userAllowed = setOf("com.example.notes")))
+    }
+
     @Test fun ordinaryInstalledAppsAreNotExempt() {
         assertFalse(SecureScreenExemptions.isExempt("com.reddit.frontpage", isSystemApp = false, isBrowser = false))
     }

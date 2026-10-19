@@ -117,6 +117,22 @@ With your VPN connected, check the Home tab:
   *Require Private DNS* on the Websites tab. Address-bar checking and image detection keep working
   either way. Do this during setup mode so it doesn't have to wait out the cool-off.
 
+### Custom filter: allow sites the family filters block
+
+Family filters treat some non-adult sites as adult, torrent indexes for example. To allow them while
+still blocking porn, use your own filter:
+
+1. Make a free profile at [NextDNS](https://nextdns.io) (or [Control D](https://controld.com)) and turn on
+   porn blocking (NextDNS: *Parental Control → Porn*).
+2. Add the sites you need to the profile's **Allowlist**.
+3. In NoXXX, choose **Custom filter** on the Websites tab and paste the profile's DNS-over-TLS hostname
+   (like `abc123.dns.nextdns.io`). Also add the sites under **Allowed sites**, since NoXXX's own list may
+   block them too.
+
+NoXXX checks every few minutes that the custom filter still blocks well-known adult sites. If porn
+blocking gets switched off in the profile, NoXXX treats Private DNS as off: browsers pause until it's
+fixed. Switching to a custom filter, or allowing sites, needs an unlock once protection has started.
+
 ## How word blocking avoids false positives
 
 - Text is decoded (`+`, `%20`), lowercased and split into words. A term matches only as a whole word,

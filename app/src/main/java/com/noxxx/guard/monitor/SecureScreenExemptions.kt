@@ -30,7 +30,15 @@ object SecureScreenExemptions {
         // Authenticators / 2FA
         "proton.android.authenticator",       // Proton Authenticator
         "com.google.android.apps.authenticator2", // Google Authenticator
-        "com.androidthings.nfc.authenticator", // Microsoft Authenticator
+        "com.azure.authenticator",            // Microsoft Authenticator
+        "com.duosecurity.duomobile",          // Duo Mobile
+        "com.beemdevelopment.aegis",          // Aegis
+        "com.authy.authy",                    // Authy
+        "com.twofasapp",                      // 2FAS
+        "com.x8bit.bitwarden.authenticator",  // Bitwarden Authenticator
+        // VPNs (protect their keys)
+        "com.wireguard.android",              // WireGuard
+        "com.zaneschepke.wireguardautotunnel", // WG Tunnel
         // Secure storage
         "com.samsung.knox.securefolder",      // Samsung Secure Folder
         // Proton (encrypted email, VPN)
@@ -42,6 +50,6 @@ object SecureScreenExemptions {
      * Preinstalled system apps (fingerprint setup, Play Store payments, Samsung Pass) use secure screens
      * for real security, so they're exempt too, except browsers, whose private tabs stay blocked.
      */
-    fun isExempt(pkg: String, isSystemApp: Boolean, isBrowser: Boolean) =
-        pkg in PACKAGES || (isSystemApp && !isBrowser)
+    fun isExempt(pkg: String, isSystemApp: Boolean, isBrowser: Boolean, userAllowed: Set<String> = emptySet()) =
+        pkg in PACKAGES || pkg in userAllowed || (isSystemApp && !isBrowser)
 }

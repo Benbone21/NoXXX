@@ -258,7 +258,7 @@ class GuardAccessibilityService : AccessibilityService() {
         // Block FLAG_SECURE (anti-screenshot) in any non-exempt app, not just browsers.
         // Catches anonymous/private modes in social apps that use FLAG_SECURE to hide content.
         val wantPrivate = p.blockPrivateBrowsing &&
-            !SecureScreenExemptions.isExempt(pkg, isSystemApp(pkg), browsers.isBrowser(pkg))
+            !SecureScreenExemptions.isExempt(pkg, isSystemApp(pkg), browsers.isBrowser(pkg), p.secureScreenAllowedApps)
         if (!wantImage && !wantPrivate) return
         val sensitivity = p.sensitivity
         sc.scan(sensitivity) { result ->

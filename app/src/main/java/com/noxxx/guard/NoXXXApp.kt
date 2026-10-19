@@ -3,6 +3,9 @@ package com.noxxx.guard
 import android.app.Application
 import android.os.SystemClock
 import com.noxxx.guard.data.BlockKind
+import com.noxxx.guard.web.PrivateDns
+import com.noxxx.guard.web.DnsCanary
+import com.noxxx.guard.data.DiagEntry
 import com.noxxx.guard.data.BlockLog
 import com.noxxx.guard.data.DiagnosticsLog
 import com.noxxx.guard.data.GuardStore
@@ -63,9 +66,30 @@ class NoXXXApp : Application() {
                         lastNetworkFix = now
                     }
                 }
+                checkCustomDns()
                 // Tick faster while an unlock is pending/open so the edit window closes on time.
                 delay(if (store.state.value.unlock != null) 15_000 else 60_000)
             }
+        }
+    }
+
+    /**
+     * With a custom DNS filter (NextDNS / Control D) in use, re-checks every few minutes that it still
+     * blocks adult sites, right away when the hostname changes. Changes in the verdict are logged.
+     */
+    fun checkCustomDns(force: Boolean = false) {
+        val dns = PrivateDns.status(this)
+        val host = dns.host
+        if (!dns.active || !dns.custom || host == null) return
+        val last = DnsCanary.last
+        val fresh = last != null && last.host == host && System.currentTimeMillis() - last.timeMs < CANARY_EVERY_MS
+        if (fresh && !force) return
+        val before = DnsCanary.isVerified(host)
+        val r = DnsCanary.check(host)
+        if (!r.inconclusive && r.passed != before) {
+            diagnostics.write(DiagEntry(r.timeMs, "DNS_CHECK", reason =
+                if (r.passed) "Custom DNS filter blocks adult sites" else "Custom DNS filter let adult sites through",
+                data = mapOf("host" to host, "leaked" to r.leaked.joinToString())))
         }
     }
 
@@ -87,5 +111,6 @@ class NoXXXApp : Application() {
     companion object {
         lateinit var instance: NoXXXApp
             private set
+        private const val CANARY_EVERY_MS = 5 * 60_000L
     }
 }

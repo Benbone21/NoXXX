@@ -30,6 +30,16 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.noxxx.guard.NoXXXApp
+import com.noxxx.guard.web.DnsCanary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,6 +129,7 @@ fun PrivateDnsSetup(status: SetupStatus, actions: PolicyActions, showProviders: 
                     }
                 }
             }
+            CustomDnsOption(status, actions)
         }
     }
 
@@ -127,6 +138,7 @@ fun PrivateDnsSetup(status: SetupStatus, actions: PolicyActions, showProviders: 
         when {
             !status.dns.online -> "Offline: can't check right now"
             status.dns.filtering -> "Filtering through ${status.dns.host}"
+            status.dns.custom -> "Custom filter ${status.dns.host} isn't confirmed to block adult sites yet"
             status.dns.active -> "Private DNS is ${status.dns.host}, which isn't a family filter"
             else -> "Private DNS is off or automatic"
         },
@@ -228,4 +240,63 @@ fun TipCard(title: String, body: String) {
 
 fun copy(context: Context, text: String) {
     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("NoXXX", text))
+}
+
+/**
+ * A personal NextDNS / Control D filter, for people who need sites the family filters block (torrent
+ * indexes, say). It only counts as filtering while the canary check confirms adult sites are blocked.
+ */
+@Composable
+private fun CustomDnsOption(status: SetupStatus, actions: PolicyActions) {
+    val p = guardState().policy
+    val selected = PrivateDnsProviders.isCustom(p.privateDnsHost)
+    var open by remember { mutableStateOf(selected) }
+    var input by remember { mutableStateOf(if (selected) p.privateDnsHost else "") }
+    val scope = rememberCoroutineScope()
+    Row(
+        Modifier.fillMaxWidth().selectable(selected = selected || open, role = Role.RadioButton) { open = true }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Column(Modifier.padding(start = 12.dp)) {
+            Text("Custom filter: NextDNS or Control D", style = MaterialTheme.typography.bodyLarge)
+            Text("Your own blocklist and allowed sites. Must block adult sites to count.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    if (!open && !selected) return
+    Column(Modifier.padding(start = 36.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Hint("1. Make a free profile at nextdns.io (or controld.com) and turn on porn blocking (NextDNS: Parental " +
+            "Control → Porn). 2. Add sites you need to its Allowlist. 3. Paste the DNS-over-TLS hostname here, " +
+            "like abc123.dns.nextdns.io. 4. Also add those sites to Allowed sites below, since NoXXX's own list may block them too.")
+        OutlinedTextField(
+            value = input,
+            onValueChange = { input = it.trim().lowercase() },
+            label = { Text("Hostname") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                if (PrivateDnsProviders.isCustom(input)) actions.change { it.copy(privateDnsHost = input) }
+                else actions.message("Enter a hostname ending in .dns.nextdns.io or .dns.controld.com")
+            }) { Text("Use this filter") }
+            if (status.dns.custom) {
+                TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) { NoXXXApp.instance.checkCustomDns(force = true) }
+                    actions.message("Checking…")
+                }) { Text("Check now") }
+            }
+        }
+        if (status.dns.custom) {
+            val last = DnsCanary.last?.takeIf { it.host == status.dns.host }
+            when {
+                last == null -> Hint("Not checked yet. It checks every few minutes, or tap Check now.")
+                last.passed -> StatusLine(true, "Confirmed: adult test sites are blocked")
+                last.inconclusive -> Hint("Couldn't check: DNS didn't answer. Try again on a working connection.")
+                else -> StatusLine(false, "Not blocking adult sites (${last.leaked.joinToString()}). Turn on porn blocking in your profile.")
+            }
+        }
+    }
 }

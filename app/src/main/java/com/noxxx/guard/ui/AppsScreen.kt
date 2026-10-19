@@ -64,6 +64,24 @@ fun LazyListScope.appsScreen(actions: PolicyActions) {
             }
         }
     }
+
+    item {
+        val p = guardState().policy
+        SectionCard(
+            "Secure screens allowed",
+            "Some apps hide their screen from screenshots to protect codes or keys, which looks the same as a private " +
+                "tab. Check an app here if it gets blocked as a private tab but shouldn't. Two-factor, password, banking " +
+                "and VPN apps are already allowed. Adding an app needs an unlock.",
+            icon = Icons.Filled.VerifiedUser,
+        ) {
+            AppPicker(p.secureScreenAllowedApps, checkingLoosens = true) { pkg, on ->
+                actions.change {
+                    if (on) it.copy(secureScreenAllowedApps = it.secureScreenAllowedApps + pkg)
+                    else it.copy(secureScreenAllowedApps = it.secureScreenAllowedApps - pkg)
+                }
+            }
+        }
+    }
 }
 
 @Composable

@@ -13,7 +13,10 @@ import com.noxxx.guard.policy.PrivateDnsProviders
  */
 object PrivateDns {
     data class Status(val online: Boolean, val active: Boolean, val host: String?) {
-        val filtering get() = active && PrivateDnsProviders.isApproved(host)
+        /** A built-in family filter, or a custom one whose porn blocking [DnsCanary] has confirmed. */
+        val filtering get() = active &&
+            (PrivateDnsProviders.isApproved(host) || (PrivateDnsProviders.isCustom(host) && DnsCanary.isVerified(host)))
+        val custom get() = PrivateDnsProviders.isCustom(host)
     }
 
     fun status(context: Context): Status {
