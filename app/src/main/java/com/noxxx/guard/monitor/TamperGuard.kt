@@ -73,9 +73,13 @@ object TamperGuard {
      * True if this system screen can switch NoXXX off (see [TamperRules]). Screens that merely list
      * the app, like the Accessibility list or app lists, are allowed.
      */
-    fun isSensitive(root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?): Boolean {
+    fun isSensitive(root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?) =
+        sensitiveReason(root, windowTitle, appLabel, dnsHost) != null
+
+    /** Which tamper rule matched this screen, or null if it's safe. */
+    fun sensitiveReason(root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?): TamperRules.Reason? {
         val scan = TamperRules.Scan(windowTitle, appLabel, dnsHost, root.packageName?.toString().orEmpty())
-        if (scan.sensitive) return true
+        if (scan.sensitive) return scan.reason
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
@@ -87,10 +91,10 @@ object TamperGuard {
                 checkable = node.isCheckable,
                 editable = node.isEditable,
             )
-            if (scan.offer(facts)) return true
+            if (scan.offer(facts)) return scan.reason
             for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
         }
-        return false
+        return null
     }
 
     private const val MAX_NODES = 800

@@ -1,5 +1,11 @@
 package com.noxxx.guard.ui
 
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -212,16 +218,29 @@ private fun RecentBlocks() {
     val log = NoXXXApp.instance.blockLog
     val events = log.events.collectAsStateWithLifecycle().value
     val fmt = remember { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT) }
+    val ctx = LocalContext.current
     SectionCard("Recent blocks", if (events.isEmpty()) "Nothing blocked yet." else null, icon = Icons.Filled.History) {
         events.take(25).forEach { e ->
             ListItem(
                 headlineContent = { Text(kindLabel(e.kind)) },
-                supportingContent = { Text("${e.detail} · ${fmt.format(Date(e.timeMs))}") },
+                supportingContent = {
+                    Column {
+                        Text("${e.detail} · ${fmt.format(Date(e.timeMs))}")
+                        if (e.reason.isNotEmpty()) {
+                            Text(e.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
                 leadingContent = { Icon(kindIcon(e.kind), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
-        if (events.isNotEmpty()) TextButton(onClick = { log.clear() }) { Text("Clear history") }
+        Hint("Something blocked that shouldn't be? Export diagnostics and share the file. It has the scores and " +
+            "rules behind each block, including blocked words and addresses, so only send it to someone you trust.")
+        Row {
+            TextButton(onClick = { exportDiagnostics(ctx) }) { Text("Export diagnostics") }
+            if (events.isNotEmpty()) TextButton(onClick = { log.clear() }) { Text("Clear history") }
+        }
     }
 }
 
@@ -247,4 +266,17 @@ fun kindIcon(k: BlockKind): ImageVector = when (k) {
     BlockKind.DNS_OFF -> Icons.Filled.WifiOff
     BlockKind.SETTINGS -> Icons.Filled.Settings
     BlockKind.GUARD_DISABLED -> Icons.Filled.Warning
+}
+
+/** Copies the diagnostics log to a shareable file and opens the share sheet. */
+private fun exportDiagnostics(context: Context) {
+    val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+    val file = NoXXXApp.instance.diagnostics.export(File(dir, "noxxx-diagnostics.txt"))
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .putExtra(Intent.EXTRA_SUBJECT, "NoXXX diagnostics")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(Intent.createChooser(send, "Share diagnostics"))
 }

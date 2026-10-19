@@ -15,7 +15,13 @@ import java.time.ZoneId
 enum class BlockKind { WEBSITE, SEARCH, APP, IMAGE, PRIVATE_BROWSING, BROWSER, DNS_OFF, SETTINGS, GUARD_DISABLED }
 
 @Serializable
-data class BlockEvent(val timeMs: Long, val kind: BlockKind, val detail: String)
+data class BlockEvent(
+    val timeMs: Long,
+    val kind: BlockKind,
+    val detail: String,
+    /** Why it was blocked, safe to show (never the blocked word itself). Empty for events logged before 1.0.2. */
+    val reason: String = "",
+)
 
 /** Block counts that survive clearing the history. [daily] is keyed by local epoch day. */
 @Serializable
@@ -28,7 +34,7 @@ data class BlockStats(val total: Long = 0, val daily: Map<Long, Int> = emptyMap(
 }
 
 /** Keeps the most recent block events and running counts on-device. */
-class BlockLog(context: Context) {
+class BlockLog(context: Context, private val diagnostics: DiagnosticsLog) {
     private val prefs = context.getSharedPreferences("block_log", Context.MODE_PRIVATE)
     private val serializer = ListSerializer(BlockEvent.serializer())
     private val json = Json { ignoreUnknownKeys = true }
@@ -47,13 +53,18 @@ class BlockLog(context: Context) {
         prefs.getString(KEY_STATS, null)?.let { runCatching { json.decodeFromString(BlockStats.serializer(), it) }.getOrNull() }
             ?: BlockStats()
 
+    /**
+     * Records a block. [reason] is shown in Recent blocks; [data] (scores, the matched word or domain,
+     * the rule that fired) only goes to the diagnostics log.
+     */
     @Synchronized
-    fun add(kind: BlockKind, detail: String) {
+    fun add(kind: BlockKind, detail: String, reason: String = "", pkg: String? = null, data: Map<String, String> = emptyMap()) {
         val now = System.currentTimeMillis()
         val last = _events.value.firstOrNull()
         // Collapse repeats of the same block within a few seconds.
         if (last != null && last.kind == kind && last.detail == detail && now - last.timeMs < 5_000) return
-        val events = (listOf(BlockEvent(now, kind, detail)) + _events.value).take(MAX_EVENTS)
+        diagnostics.write(DiagEntry(now, "BLOCK", kind.name, pkg, detail, reason, data))
+        val events = (listOf(BlockEvent(now, kind, detail, reason)) + _events.value).take(MAX_EVENTS)
 
         val today = dayOf(now)
         val old = _stats.value

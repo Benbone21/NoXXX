@@ -22,19 +22,22 @@ class KeywordMatcher(terms: Collection<String>, allowed: Collection<String> = em
 
     val isEmpty get() = words.isEmpty() && phrasesByFirst.isEmpty()
 
-    fun matches(text: String): Boolean {
-        if (isEmpty || text.isBlank()) return false
+    fun matches(text: String) = firstMatch(text) != null
+
+    /** The blocked word or phrase (normalized, space-separated) found in [text], or null if none. */
+    fun firstMatch(text: String): String? {
+        if (isEmpty || text.isBlank()) return null
         val toks = tokens(text)
         for (i in toks.indices) {
             val t = toks[i]
-            if (t in words) return true
+            if (t in words) return t
             // Simple plural, only for longer words so short terms can't pick up stray matches.
-            if (t.length >= 5 && t.endsWith('s') && t.dropLast(1) in words) return true
+            if (t.length >= 5 && t.endsWith('s') && t.dropLast(1) in words) return t.dropLast(1)
             phrasesByFirst[t]?.forEach { p ->
-                if (i + p.size <= toks.size && p.indices.all { toks[i + it] == p[it] }) return true
+                if (i + p.size <= toks.size && p.indices.all { toks[i + it] == p[it] }) return p.joinToString(" ")
             }
         }
-        return false
+        return null
     }
 
     companion object {

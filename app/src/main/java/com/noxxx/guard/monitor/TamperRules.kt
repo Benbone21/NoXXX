@@ -34,15 +34,22 @@ object TamperRules {
         "com.miui.packageinstaller",
     )
 
-    fun isSensitive(
-        nodes: List<NodeFacts>,
-        windowTitle: String?,
-        appLabel: String,
-        dnsHost: String?,
-        pkg: String,
-    ): Boolean {
+    /** Which rule above marked a screen as able to switch NoXXX off. Logged to explain each block. */
+    enum class Reason(val description: String) {
+        TITLE("Screen title names NoXXX"),
+        TOGGLE("A switch is labelled with NoXXX's name"),
+        DNS_FIELD("Private DNS hostname field"),
+        ACTION_BUTTON("Stop / uninstall / clear button on a page about NoXXX"),
+        INSTALLER("Uninstall prompt for NoXXX"),
+    }
+
+    fun isSensitive(nodes: List<NodeFacts>, windowTitle: String?, appLabel: String, dnsHost: String?, pkg: String) =
+        reason(nodes, windowTitle, appLabel, dnsHost, pkg) != null
+
+    fun reason(nodes: List<NodeFacts>, windowTitle: String?, appLabel: String, dnsHost: String?, pkg: String): Reason? {
         val scan = Scan(windowTitle, appLabel, dnsHost, pkg)
-        return scan.sensitive || nodes.any(scan::offer)
+        if (!scan.sensitive) nodes.any(scan::offer)
+        return scan.reason
     }
 
     fun mentions(text: CharSequence?, appLabel: String) = text?.toString()?.contains(appLabel, ignoreCase = true) == true
@@ -54,8 +61,9 @@ object TamperRules {
         private var labelSeen = false
         private var dangerousAction = false
 
-        var sensitive = windowTitle?.lowercase()?.contains(label) == true
+        var reason: Reason? = Reason.TITLE.takeIf { windowTitle?.lowercase()?.contains(label) == true }
             private set
+        val sensitive get() = reason != null
 
         fun offer(n: NodeFacts): Boolean {
             if (sensitive) return true
@@ -63,11 +71,14 @@ object TamperRules {
             val desc = n.description?.lowercase()
             if (text?.contains(label) == true || desc?.contains(label) == true) {
                 labelSeen = true
-                if (n.checkable) sensitive = true
+                if (n.checkable) reason = Reason.TOGGLE
             }
-            if (host != null && n.editable && text?.contains(host) == true) sensitive = true
+            if (reason == null && host != null && n.editable && text?.contains(host) == true) reason = Reason.DNS_FIELD
             if (text?.trim() in DANGEROUS_ACTIONS || desc?.trim() in DANGEROUS_ACTIONS) dangerousAction = true
-            if (labelSeen && (dangerousAction || pkg in INSTALLER_PACKAGES)) sensitive = true
+            if (reason == null && labelSeen) {
+                if (pkg in INSTALLER_PACKAGES) reason = Reason.INSTALLER
+                else if (dangerousAction) reason = Reason.ACTION_BUTTON
+            }
             return sensitive
         }
     }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.SystemClock
 import com.noxxx.guard.data.BlockKind
 import com.noxxx.guard.data.BlockLog
+import com.noxxx.guard.data.DiagnosticsLog
 import com.noxxx.guard.data.GuardStore
 import com.noxxx.guard.data.NetworkTime
 import com.noxxx.guard.monitor.GuardAccessibilityService
@@ -23,6 +24,7 @@ class NoXXXApp : Application() {
     lateinit var store: GuardStore
         private set
     lateinit var blockLog: BlockLog
+    lateinit var diagnostics: DiagnosticsLog
         private set
     val blocklist = DomainBlocklist()
     val keywords = KeywordIndex()
@@ -34,7 +36,8 @@ class NoXXXApp : Application() {
         super.onCreate()
         instance = this
         store = GuardStore(this)
-        blockLog = BlockLog(this)
+        diagnostics = DiagnosticsLog(this)
+        blockLog = BlockLog(this, diagnostics)
         TamperNotifier.ensureChannel(this)
         appScope.launch(Dispatchers.IO) {
             blocklist.loadBundled(this@NoXXXApp)
@@ -71,7 +74,8 @@ class NoXXXApp : Application() {
         val state = store.state.value
         if (serviceWasRunning && !running && state.committed) {
             store.recordTamper("Guard service was disabled")
-            blockLog.add(BlockKind.GUARD_DISABLED, "Accessibility service turned off")
+            blockLog.add(BlockKind.GUARD_DISABLED, "Accessibility service turned off",
+                reason = "The guard service stopped running while protection was on")
             TamperNotifier.showGuardDown(this)
         }
         if (running && !serviceWasRunning && state.tamperEvents.isNotEmpty()) {

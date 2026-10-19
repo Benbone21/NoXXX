@@ -18,8 +18,21 @@ class Scores(private val p: FloatArray) {
 
     private fun at(i: Int) = p.getOrElse(i) { 0f }
 
+    /** Every class score, two decimals, for the diagnostics log. */
+    fun toLog(): Map<String, String> = mapOf(
+        "drawing" to at(DRAWING), "illustratedExplicit" to at(ILLUSTRATED_EXPLICIT), "neutral" to at(NEUTRAL),
+        "explicitPhoto" to at(EXPLICIT), "suggestive" to at(SUGGESTIVE), "explicitTotal" to explicit,
+    ).mapValues { "%.2f".format(it.value) }
+
     // "Suggestive" alone fires on ordinary photos of people (faces, skin, clothes), so it never
     // blocks by itself; it only tips a borderline explicit score over the line in Strict.
+    /** The rule each level applies, in words, for logs. Must match [isFlagged]. */
+    fun ruleText(s: Sensitivity) = when (s) {
+        Sensitivity.RELAXED -> "explicit ≥ 0.90"
+        Sensitivity.BALANCED -> "explicit ≥ 0.80"
+        Sensitivity.STRICT -> "explicit ≥ 0.60, or explicit ≥ 0.30 with explicit + suggestive ≥ 0.85"
+    }
+
     fun isFlagged(s: Sensitivity) = when (s) {
         Sensitivity.RELAXED -> explicit >= 0.90f
         Sensitivity.BALANCED -> explicit >= 0.80f

@@ -1,6 +1,8 @@
 package com.noxxx.guard.monitor
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,6 +25,15 @@ class TamperRulesTest {
 
     @Test fun noXXXAccessibilityPageIsBlockedByTitle() {
         assertTrue(sensitive(listOf(t("Use NoXXX"), t("NoXXX shortcut")), title = "NoXXX"))
+    }
+
+    @Test fun reasonNamesTheRuleThatMatched() {
+        assertEquals(TamperRules.Reason.TITLE, TamperRules.reason(listOf(t("Use NoXXX")), "NoXXX", "NoXXX", null, settings))
+        assertEquals(TamperRules.Reason.TOGGLE,
+            TamperRules.reason(listOf(NodeFacts("Use NoXXX", null, checkable = true)), "Settings", "NoXXX", null, settings))
+        assertEquals(TamperRules.Reason.ACTION_BUTTON,
+            TamperRules.reason(listOf(t("NoXXX"), t("Force stop")), "App info", "NoXXX", null, settings))
+        assertNull(TamperRules.reason(listOf(t("All apps"), t("NoXXX")), "All apps", "NoXXX", null, settings))
     }
 
     @Test fun toggleLabelledWithNameIsBlocked() {

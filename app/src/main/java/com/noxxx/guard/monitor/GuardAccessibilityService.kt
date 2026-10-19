@@ -19,10 +19,13 @@ import android.view.inputmethod.InputMethodManager
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.R
 import com.noxxx.guard.data.BlockKind
+import com.noxxx.guard.data.DiagEntry
 import com.noxxx.guard.policy.Policy
 import com.noxxx.guard.policy.Sensitivity
+import com.noxxx.guard.vision.Scores
 import com.noxxx.guard.vision.ScanResult
 import com.noxxx.guard.vision.ScreenScanner
+import com.noxxx.guard.web.KeywordMatcher
 import com.noxxx.guard.web.PrivateDns
 import com.noxxx.guard.web.UrlChecker
 import com.noxxx.guard.web.Verdict
@@ -127,13 +130,22 @@ class GuardAccessibilityService : AccessibilityService() {
         if (overlay.isShowing || pkg in transient) return
         val state = app.store.state.value
         val p = state.policy
-        if (pkg in p.blockedApps && pkg !in essential && pkg !in p.neverBlockApps) return block(BlockKind.APP, label(pkg))
+        if (pkg in p.blockedApps && pkg !in essential && pkg !in p.neverBlockApps) {
+            return block(BlockKind.APP, label(pkg), pkg, "On your blocked apps list")
+        }
         if (browsers.isBrowser(pkg)) {
-            if (p.blockUnsupportedBrowsers && !browsers.isSupported(pkg)) return block(BlockKind.BROWSER, label(pkg))
+            if (p.blockUnsupportedBrowsers && !browsers.isSupported(pkg)) {
+                return block(BlockKind.BROWSER, label(pkg), pkg, "A browser NoXXX can't check (\"Block unsupported browsers\" is on)")
+            }
             if (state.committed && p.requirePrivateDns && !privateDnsOk(p)) {
                 // Re-check shortly: Private DNS briefly reads as inactive while switching networks.
                 handler.postDelayed({
-                    if (foreground == pkg && !overlay.isShowing && !privateDnsOk(policy)) block(BlockKind.DNS_OFF, label(pkg))
+                    if (foreground == pkg && !overlay.isShowing && !privateDnsOk(policy)) {
+                        val dns = PrivateDns.status(this)
+                        block(BlockKind.DNS_OFF, label(pkg), pkg, "Private DNS wasn't filtering when the browser opened",
+                            mapOf("dnsOnline" to "${dns.online}", "dnsActive" to "${dns.active}", "dnsHost" to "${dns.host}",
+                                "expectedHost" to policy.privateDnsHost))
+                    }
                 }, DNS_RECHECK_MS)
             }
         }
@@ -175,10 +187,13 @@ class GuardAccessibilityService : AccessibilityService() {
                 for (node in root.findAccessibilityNodeInfosByViewId(id)) {
                     val text = node.text?.toString() ?: continue
                     when (val v = UrlChecker.check(text, p, app.blocklist, keywords)) {
-                        is Verdict.Domain -> return block(BlockKind.WEBSITE, v.host)
-                        Verdict.Keyword -> {
+                        is Verdict.Domain -> return block(BlockKind.WEBSITE, v.host, pkg,
+                            (if (v.custom) "On your blocked sites" else "On the built-in adult-site list") + " (matched ${v.matched})",
+                            mapOf("host" to v.host, "matched" to v.matched, "list" to if (v.custom) "custom" else "built-in"))
+                        is Verdict.Keyword -> {
                             if (node.isEditable) clearText(node)
-                            return block(BlockKind.SEARCH, label(pkg))
+                            return block(BlockKind.SEARCH, label(pkg), pkg, "Blocked word in the address bar (${wordSource(v.term, p)})",
+                                mapOf("term" to v.term, "list" to wordSource(v.term, p), "field" to id, "text" to text.take(200)))
                         }
                         null -> Unit
                     }
@@ -197,9 +212,11 @@ class GuardAccessibilityService : AccessibilityService() {
         if (!node.isEditable || node.isPassword || node.isShowingHintText) return
         if (!looksLikeSearch(node)) return
         val text = node.text?.toString() ?: return
-        if (!app.keywords.matcherFor(p).matches(text)) return
+        val term = app.keywords.matcherFor(p).firstMatch(text) ?: return
         clearText(node)
-        block(BlockKind.SEARCH, label(pkg))
+        block(BlockKind.SEARCH, label(pkg), pkg, "Blocked word in a search box (${wordSource(term, p)})",
+            mapOf("term" to term, "list" to wordSource(term, p), "field" to node.viewIdResourceName.orEmpty(),
+                "hint" to node.hintText?.toString().orEmpty(), "text" to text.take(200)))
     }
 
     /**
@@ -260,11 +277,35 @@ class GuardAccessibilityService : AccessibilityService() {
         }
         // Consecutive flagged scans (~1.5 s apart) before blocking, so one odd frame while scrolling can't.
         val needed = if (s == Sensitivity.RELAXED) 3 else 2
+        val top = r.top
+        val imageData = top?.toLog().orEmpty() + mapOf(
+            "sensitivity" to s.name, "rule" to (top?.ruleText(s) ?: ""), "tile" to "${r.tile} of ${r.tiles}",
+            "flaggedScansInARow" to "$flaggedFrames", "scansNeeded" to "$needed",
+        )
         when {
-            wantImage && flaggedFrames >= needed -> block(BlockKind.IMAGE, label(pkg))
-            wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg))
+            wantImage && flaggedFrames >= needed && top != null -> block(BlockKind.IMAGE, label(pkg), pkg,
+                "Explicit %.2f (%s), %d scans in a row".format(top.explicit, s.name.lowercase(), flaggedFrames), imageData)
+            wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg), pkg,
+                r.secureCheck ?: "Secure screen", mapOf("method" to r.secureCheck.orEmpty(), "blankScansInARow" to "$blankFrames"))
+            wantImage && top != null && (r.flagged || top.explicit >= NEAR_MISS_EXPLICIT) -> logNearMiss(pkg, s, top, imageData)
         }
     }
+
+    private val lastNearMiss = HashMap<String, Long>()
+
+    /** Images that scored high but didn't block, at most one per app per minute: shows how close normal content gets. */
+    private fun logNearMiss(pkg: String, s: Sensitivity, top: Scores, data: Map<String, String>) {
+        val now = SystemClock.uptimeMillis()
+        if (now - (lastNearMiss[pkg] ?: -NEAR_MISS_SPACING_MS) < NEAR_MISS_SPACING_MS) return
+        lastNearMiss[pkg] = now
+        val why = if (top.isFlagged(s)) "Flagged, but not on enough scans in a row" else "Below the ${s.name.lowercase()} threshold"
+        app.diagnostics.write(DiagEntry(System.currentTimeMillis(), "NEAR_MISS", BlockKind.IMAGE.name, pkg, label(pkg),
+            "$why (explicit %.2f)".format(top.explicit), data))
+    }
+
+    /** Which list a matched word came from, for logs. */
+    private fun wordSource(term: String, p: Policy) =
+        if (p.customKeywords.any { KeywordMatcher.tokens(it).joinToString(" ") == term }) "your words" else "built-in list"
 
     // --- Housekeeping ---
 
@@ -303,9 +344,9 @@ class GuardAccessibilityService : AccessibilityService() {
         essential = EssentialApps.protectedSet(this)
     }
 
-    private fun block(kind: BlockKind, detail: String) {
+    private fun block(kind: BlockKind, detail: String, pkg: String?, reason: String, data: Map<String, String> = emptyMap()) {
         if (overlay.isShowing) return
-        app.blockLog.add(kind, detail)
+        app.blockLog.add(kind, detail, reason, pkg, data)
         when (kind) {
             BlockKind.WEBSITE, BlockKind.SEARCH, BlockKind.IMAGE, BlockKind.PRIVATE_BROWSING -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> performGlobalAction(GLOBAL_ACTION_HOME)
@@ -374,8 +415,12 @@ class GuardAccessibilityService : AccessibilityService() {
         val p = policy
         val dnsGrace = TamperGuard.activeGrace() == TamperGuard.Grace.PRIVATE_DNS
         val host = p.privateDnsHost.takeIf { p.requirePrivateDns && !dnsGrace }
-        return TamperGuard.isSensitive(root, titleByPackage[pkg], appLabel, host)
+        lockReason = TamperGuard.sensitiveReason(root, titleByPackage[pkg], appLabel, host)
+        return lockReason != null
     }
+
+    /** The tamper rule behind the last locked screen, for the block log. */
+    private var lockReason: TamperRules.Reason? = null
 
     /** The app window in front. Touching the shield can make it the "active" window, so look past it. */
     private fun frontRoot(): AccessibilityNodeInfo? {
@@ -409,7 +454,9 @@ class GuardAccessibilityService : AccessibilityService() {
         clearPending = false
         if (!shieldLogged) {
             shieldLogged = true
-            app.blockLog.add(BlockKind.SETTINGS, label(pkg))
+            val rule = lockReason
+            app.blockLog.add(BlockKind.SETTINGS, label(pkg), rule?.description ?: "Protected settings screen", pkg,
+                mapOf("rule" to rule?.name.orEmpty(), "window" to lastWindowClass.orEmpty(), "title" to titleByPackage[pkg].orEmpty()))
         }
         val now = SystemClock.uptimeMillis()
         if (now - lastShieldActionAt >= SHIELD_ACTION_SPACING_MS) {
@@ -478,6 +525,9 @@ class GuardAccessibilityService : AccessibilityService() {
         private const val SCAN_INTERVAL_MS = 1_500L
         private const val WINDOW_CHECK_INTERVAL_MS = 400L
         private const val DNS_RECHECK_MS = 3_000L
+        /** Image scans scoring at least this explicit are logged as near misses even when not flagged. */
+        private const val NEAR_MISS_EXPLICIT = 0.35f
+        private const val NEAR_MISS_SPACING_MS = 60_000L
         private const val SHIELD_POLL_MS = 120L
         /** Roughly one Back animation, so a second Back isn't sent before the first has landed. */
         private const val SHIELD_ACTION_SPACING_MS = 450L

@@ -13,7 +13,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
-data class ScanResult(val flagged: Boolean, val blank: Boolean)
+/**
+ * [top] is the tile with the highest explicit score (the one that flagged, if any), at [tile] of
+ * [tiles]. [secureCheck] says how a blank/secure screen was detected, for the diagnostics log.
+ */
+data class ScanResult(
+    val flagged: Boolean,
+    val blank: Boolean,
+    val top: Scores? = null,
+    val tile: Int = 0,
+    val tiles: Int = 0,
+    val secureCheck: String? = null,
+)
 
 /**
  * Takes a screenshot through the accessibility service (Android 11+), shrinks it, and classifies
@@ -75,7 +86,7 @@ class ScreenScanner(private val service: AccessibilityService) {
 
                 override fun onFailure(errorCode: Int) {
                     if (errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) {
-                        onResult(ScanResult(flagged = false, blank = true))
+                        onResult(ScanResult(flagged = false, blank = true, secureCheck = "Android reported a secure window"))
                     }
                     busy.set(false)
                 }
@@ -106,17 +117,23 @@ class ScreenScanner(private val service: AccessibilityService) {
             val h = maxOf(side, (software.height * scale).roundToInt())
             val small = Bitmap.createScaledBitmap(software, w, h, true)
             try {
-                if (guessBlank && isBlank(small)) return ScanResult(flagged = false, blank = true)
-                val pixels = IntArray(side * side)
-                var flagged = false
-                for ((x, y) in tileOrigins(w, h, side)) {
-                    small.getPixels(pixels, 0, side, x, y, side, side)
-                    if (model.classify(pixels).isFlagged(sensitivity)) {
-                        flagged = true
-                        break
-                    }
+                if (guessBlank && isBlank(small)) {
+                    return ScanResult(flagged = false, blank = true, secureCheck = "Screen was almost all black (pre-Android 14 check)")
                 }
-                return ScanResult(flagged = flagged, blank = false)
+                val pixels = IntArray(side * side)
+                val origins = tileOrigins(w, h, side)
+                var top: Scores? = null
+                var topTile = 0
+                for ((i, origin) in origins.withIndex()) {
+                    small.getPixels(pixels, 0, side, origin.first, origin.second, side, side)
+                    val s = model.classify(pixels)
+                    if (top == null || s.explicit > top.explicit) {
+                        top = s
+                        topTile = i
+                    }
+                    if (s.isFlagged(sensitivity)) return ScanResult(true, false, s, i + 1, origins.size)
+                }
+                return ScanResult(false, false, top, topTile + 1, origins.size)
             } finally {
                 if (small !== software) small.recycle()
             }

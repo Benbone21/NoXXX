@@ -3,6 +3,7 @@ package com.noxxx.guard.web
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.File
 
@@ -14,6 +15,8 @@ class KeywordMatcherTest {
         assertTrue(m.matches("where to find zorbex"))
         assertTrue(m.matches("ZORBEX"))
         assertTrue(m.matches("big zorbexs online")) // plural
+        assertEquals("zorbex", m.firstMatch("big zorbexs online"))
+        assertNull(m.firstMatch("zorbexian history"))
     }
 
     @Test fun wordsInsideLongerWordsNeverMatch() {

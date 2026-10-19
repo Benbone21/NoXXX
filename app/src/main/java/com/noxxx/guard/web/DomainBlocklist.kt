@@ -44,15 +44,18 @@ class DomainBlocklist {
     }
 
     /** True if [host] or any parent domain (excluding the bare TLD) is listed. */
-    fun matches(host: String): Boolean {
+    fun matches(host: String) = matchingDomain(host) != null
+
+    /** The listed domain [host] falls under (itself or a parent domain), or null. */
+    fun matchingDomain(host: String): String? {
         val arr = hashes
-        if (arr.isEmpty()) return false
+        if (arr.isEmpty()) return null
         var h = host.lowercase().trimEnd('.')
         while (h.contains('.')) {
-            if (arr.binarySearch(hash(h)) >= 0) return true
+            if (arr.binarySearch(hash(h)) >= 0) return h
             h = h.substringAfter('.')
         }
-        return false
+        return null
     }
 
     companion object {

@@ -21,6 +21,8 @@ class BlocklistTest {
         assertTrue(list.matches("www.listed-sample.org"))
         assertFalse(list.matches("notblocked-example.com"))
         assertFalse(list.matches("com"))
+        assertEquals("blocked-example.com", list.matchingDomain("a.b.blocked-example.com"))
+        assertNull(list.matchingDomain("notblocked-example.com"))
     }
 
     @Test fun addressBarParsing() {
@@ -33,17 +35,17 @@ class BlocklistTest {
     @Test fun urlCheckerHonoursAllowAndCustomLists() {
         val p = Policy(customBlockedDomains = setOf("mine.example"), allowedDomains = setOf("ok.blocked-example.com"))
         val none = KeywordMatcher(emptyList())
-        assertEquals(Verdict.Domain("blocked-example.com"), UrlChecker.check("blocked-example.com/page", p, list, none))
+        assertEquals(Verdict.Domain("blocked-example.com", matched = "blocked-example.com", custom = false), UrlChecker.check("blocked-example.com/page", p, list, none))
         assertNull(UrlChecker.check("ok.blocked-example.com", p, list, none))
-        assertEquals(Verdict.Domain("sub.mine.example"), UrlChecker.check("sub.mine.example", p, list, none))
+        assertEquals(Verdict.Domain("sub.mine.example", matched = "mine.example", custom = true), UrlChecker.check("sub.mine.example", p, list, none))
         assertNull(UrlChecker.check("wikipedia.org", p, list, none))
     }
 
     @Test fun keywordsMatchSearchesAsWholeWords() {
         val p = Policy(customKeywords = setOf("forbidden phrase"))
         val m = KeywordMatcher(p.customKeywords)
-        assertEquals(Verdict.Keyword, UrlChecker.check("some forbidden phrase here", p, list, m))
-        assertEquals(Verdict.Keyword, UrlChecker.check("google.com/search?q=forbidden+phrase", p, list, m))
+        assertEquals(Verdict.Keyword("forbidden phrase"), UrlChecker.check("some forbidden phrase here", p, list, m))
+        assertEquals(Verdict.Keyword("forbidden phrase"), UrlChecker.check("google.com/search?q=forbidden+phrase", p, list, m))
         assertNull(UrlChecker.check("allowed words", p, list, m))
         assertNull(UrlChecker.check("forbiddenphrase", p, list, m))
     }
