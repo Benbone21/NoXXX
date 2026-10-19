@@ -47,8 +47,8 @@ fun LazyListScope.imagesScreen(actions: PolicyActions) {
             Hint(
                 when (p.sensitivity) {
                     Sensitivity.RELAXED -> "Only clear-cut explicit images. Fewest false alarms."
-                    Sensitivity.BALANCED -> "Explicit images plus very revealing ones. Recommended."
-                    Sensitivity.STRICT -> "Also flags suggestive images, and reacts on the first frame. Expect some false alarms."
+                    Sensitivity.BALANCED -> "Explicit images. Recommended."
+                    Sensitivity.STRICT -> "Also catches borderline images that look partly explicit. Expect occasional false alarms."
                 }
             )
             ToggleRow(
