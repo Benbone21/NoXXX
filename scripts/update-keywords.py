@@ -15,6 +15,8 @@ Rules, chosen to avoid false positives:
   - With --exclude-corpus, any word or phrase that appears anywhere in a body of ordinary text
     (e.g. /usr/share/doc on Linux: licences, changelogs, manuals) is dropped too, because it
     evidently has an everyday meaning. The shipped list was built this way.
+  - ALWAYS_BLOCK terms are added back at the end. They are unambiguous in a search but also turn
+    up in ordinary text (licences mention "porn", for example), so the filters above would drop them.
   - The app matches whole words and phrases only, never parts of words.
 
 The output is never printed; only counts are reported.
@@ -32,6 +34,10 @@ PROFANITY_URL = "https://raw.githubusercontent.com/dsojevic/profanity-list/main/
 COMMON_URL = "https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt"
 OUT = Path(__file__).resolve().parent.parent / "app" / "src" / "main" / "assets" / "keywords.txt"
 MIN_SEVERITY = 2
+
+# Unambiguous in a search, so always kept. Deliberately not here: sex, sexy, nude, naked, boobs, nsfw
+# and xxx, which all have common innocent uses ("sex education", "naked eye", "nude lipstick").
+ALWAYS_BLOCK = {"porn", "hentai", "nudes", "camgirl", "milf", "redtube", "youporn", "brazzers"}
 
 
 def expand_repeats(pattern: str) -> list[str]:
@@ -143,6 +149,7 @@ def main() -> int:
         before = len(terms)
         terms, scanned = exclude_corpus(terms, args.exclude_corpus)
         print(f"scanned {scanned:,} words of ordinary text; dropped {before - len(terms)} terms found there")
+    terms |= {normalize(t) for t in ALWAYS_BLOCK}
     OUT.write_text("\n".join(sorted(terms)) + "\n")
     phrases = sum(1 for t in terms if " " in t)
     print(f"source entries used: {stats['entries']}, variants: {stats['variants']}")
