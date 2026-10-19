@@ -38,5 +38,10 @@ object SecureScreenExemptions {
         "ch.protonvpn.android",               // Proton VPN
     )
 
-    fun isExempt(pkg: String) = pkg in PACKAGES
+    /**
+     * Preinstalled system apps (fingerprint setup, Play Store payments, Samsung Pass) use secure screens
+     * for real security, so they're exempt too, except browsers, whose private tabs stay blocked.
+     */
+    fun isExempt(pkg: String, isSystemApp: Boolean, isBrowser: Boolean) =
+        pkg in PACKAGES || (isSystemApp && !isBrowser)
 }

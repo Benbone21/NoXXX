@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
 import android.view.Display
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
 import com.noxxx.guard.policy.Sensitivity
 import java.util.concurrent.Executors
@@ -26,11 +27,14 @@ class ScreenScanner(private val service: AccessibilityService) {
 
     fun scan(sensitivity: Sensitivity, onResult: (ScanResult) -> Unit) {
         if (!busy.compareAndSet(false, true)) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            appWindowId()?.let { return scanWindow(it, sensitivity, onResult) }
+        }
         try {
             service.takeScreenshot(Display.DEFAULT_DISPLAY, executor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
                     try {
-                        analyze(result, sensitivity)?.let(onResult)
+                        analyze(result, sensitivity, guessBlank = true)?.let(onResult)
                     } catch (e: Throwable) {
                         Log.w(TAG, "analysis failed", e)
                     } finally {
@@ -47,7 +51,42 @@ class ScreenScanner(private val service: AccessibilityService) {
         }
     }
 
-    private fun analyze(result: AccessibilityService.ScreenshotResult, sensitivity: Sensitivity): ScanResult? {
+    private fun appWindowId(): Int? = runCatching {
+        service.windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isFocused }?.id
+    }.getOrNull()
+
+    /**
+     * Android 14+: screenshots only the app's own window. Android refuses only when that window really
+     * is secure (FLAG_SECURE), so dark apps like a black audiobook player are no longer mistaken for one.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    private fun scanWindow(windowId: Int, sensitivity: Sensitivity, onResult: (ScanResult) -> Unit) {
+        try {
+            service.takeScreenshotOfWindow(windowId, executor, object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                    try {
+                        analyze(result, sensitivity, guessBlank = false)?.let(onResult)
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "analysis failed", e)
+                    } finally {
+                        busy.set(false)
+                    }
+                }
+
+                override fun onFailure(errorCode: Int) {
+                    if (errorCode == AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) {
+                        onResult(ScanResult(flagged = false, blank = true))
+                    }
+                    busy.set(false)
+                }
+            })
+        } catch (e: Throwable) {
+            busy.set(false)
+        }
+    }
+
+    /** [guessBlank]: treat an almost all-black screen as secure (before Android 14 there's no direct check). */
+    private fun analyze(result: AccessibilityService.ScreenshotResult, sensitivity: Sensitivity, guessBlank: Boolean): ScanResult? {
         val buffer = result.hardwareBuffer
         val software = try {
             val hw = Bitmap.wrapHardwareBuffer(buffer, result.colorSpace) ?: return null
@@ -67,7 +106,7 @@ class ScreenScanner(private val service: AccessibilityService) {
             val h = maxOf(side, (software.height * scale).roundToInt())
             val small = Bitmap.createScaledBitmap(software, w, h, true)
             try {
-                if (isBlank(small)) return ScanResult(flagged = false, blank = true)
+                if (guessBlank && isBlank(small)) return ScanResult(flagged = false, blank = true)
                 val pixels = IntArray(side * side)
                 var combined: Scores? = null
                 for ((x, y) in tileOrigins(w, h, side)) {

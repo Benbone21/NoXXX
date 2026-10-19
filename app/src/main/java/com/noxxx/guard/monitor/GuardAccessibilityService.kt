@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -239,7 +240,8 @@ class GuardAccessibilityService : AccessibilityService() {
             (p.scanMessagingApps || !CommApps.isCommApp(pkg))
         // Block FLAG_SECURE (anti-screenshot) in any non-exempt app, not just browsers.
         // Catches anonymous/private modes in social apps that use FLAG_SECURE to hide content.
-        val wantPrivate = p.blockPrivateBrowsing && !SecureScreenExemptions.isExempt(pkg)
+        val wantPrivate = p.blockPrivateBrowsing &&
+            !SecureScreenExemptions.isExempt(pkg, isSystemApp(pkg), browsers.isBrowser(pkg))
         if (!wantImage && !wantPrivate) return
         val sensitivity = p.sensitivity
         sc.scan(sensitivity) { result ->
@@ -277,6 +279,13 @@ class GuardAccessibilityService : AccessibilityService() {
             }
             handler.postDelayed(this, 30_000)
         }
+    }
+
+    private val systemApps = HashMap<String, Boolean>()
+
+    private fun isSystemApp(pkg: String) = systemApps.getOrPut(pkg) {
+        runCatching { packageManager.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM != 0 }
+            .getOrDefault(false)
     }
 
     private fun refreshPackageSets() {
