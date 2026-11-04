@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.GuardState
 import com.noxxx.guard.policy.UnlockRequest
+import com.noxxx.guard.policy.formatCountdown
 import com.noxxx.guard.policy.formatDuration
 import com.noxxx.guard.policy.formatMinutes
 
@@ -51,11 +52,6 @@ private fun phaseOf(s: GuardState): LockPhase? {
         u.isReady -> LockPhase.READY
         else -> LockPhase.WAITING
     }
-}
-
-private fun mmss(ms: Long): String {
-    val s = (ms + 999) / 1000
-    return "%d:%02d".format(s / 60, s % 60)
 }
 
 /**
@@ -82,9 +78,9 @@ fun LockStatusCard(actions: PolicyActions, full: Boolean = false) {
             "Your unlock request is waiting out the $coolOff cool-off. If the urge has passed, cancel it.")
         LockPhase.READY -> Triple(Icons.Filled.LockOpen, "Unlock is ready",
             "Open it when you're ready to make changes. You'll have $window. It expires in ${formatDuration(u!!.readyRemainingMs)}.")
-        LockPhase.OPEN -> Triple(Icons.Filled.LockOpen, "Settings unlocked: ${mmss(u!!.windowRemainingMs)} left",
+        LockPhase.OPEN -> Triple(Icons.Filled.LockOpen, "Settings unlocked: ${formatCountdown(u!!.windowRemainingMs)} left",
             "Settings can be changed. TamperShield is still active; use Full Unlock to deactivate device admin.")
-        LockPhase.FULL_OPEN -> Triple(Icons.Filled.LockOpen, "Full unlock: ${mmss(state.fullUnlock!!.windowRemainingMs)} left",
+        LockPhase.FULL_OPEN -> Triple(Icons.Filled.LockOpen, "Full unlock: ${formatCountdown(state.fullUnlock!!.windowRemainingMs)} left",
             "TamperShield is off. You can deactivate device admin and uninstall. Locks again automatically.")
     }
     val open = phase == LockPhase.OPEN

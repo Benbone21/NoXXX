@@ -182,8 +182,21 @@ fun formatDuration(ms: Long): String {
     val h = (totalMin % (24 * 60)) / 60
     val m = totalMin % 60
     return when {
-        d > 0 -> "${d}d ${h}h"
+        d > 0 -> "${d}d ${h}h ${m}m"
         h > 0 -> "${h}h ${m}m"
         else -> "${m}m"
+    }
+}
+
+/** A live countdown with labelled units, like "14m 32s", so it can't be misread as a clock time. */
+fun formatCountdown(ms: Long): String {
+    val total = (ms + 999) / 1000
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    return when {
+        h > 0 -> "${h}h ${m}m ${s}s"
+        m > 0 -> "${m}m ${s}s"
+        else -> "${s}s"
     }
 }

@@ -37,16 +37,12 @@ import androidx.compose.ui.unit.dp
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.PolicyEngine
 import com.noxxx.guard.policy.UnlockRequest
+import com.noxxx.guard.policy.formatCountdown
 import com.noxxx.guard.policy.formatDuration
 import com.noxxx.guard.policy.formatMinutes
 
 private val COOL_OFF_OPTIONS = listOf(60, 6 * 60, 12 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
 private val LOCKDOWN_DAYS = listOf(1, 3, 7, 14, 30, 90)
-
-private fun mmss(ms: Long): String {
-    val s = (ms + 999) / 1000
-    return "%d:%02d".format(s / 60, s % 60)
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun LazyListScope.lockScreen(actions: PolicyActions) {
@@ -132,7 +128,7 @@ private fun FullUnlockCard(actions: PolicyActions) {
                 TextButton(onClick = { store.relockFull() }) { Text("Cancel") }
             }
         } else if (u.isOpen) {
-            Text("Full unlock active: ${mmss(u.windowRemainingMs)} left", color = MaterialTheme.colorScheme.primary)
+            Text("Full unlock active: ${formatCountdown(u.windowRemainingMs)} left", color = MaterialTheme.colorScheme.primary)
             LinearProgressIndicator(
                 progress = { (u.windowRemainingMs.toFloat() / UnlockRequest.WINDOW_MS).coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
