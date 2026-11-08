@@ -256,6 +256,8 @@ app/src/main/assets/
   `scripts/build-scriptures.py`)
 - Streak milestones adapted from [Quitter](https://github.com/brandonp2412/Quitter) (MIT License,
   Copyright (c) 2025 Quitter)
+- Heading font: [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant), SIL Open Font License
+  (`licenses/Cormorant-Garamond-OFL.txt`)
 - Image model: [GantMan/nsfw_model](https://github.com/GantMan/nsfw_model) MobileNetV2 224 (MIT)
 - DNS filtering: [CleanBrowsing](https://cleanbrowsing.org) and [Cloudflare for Families](https://one.one.one.one/family/)
 

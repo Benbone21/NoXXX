@@ -60,27 +60,28 @@ import java.util.Date
 @Composable
 fun guardState(): GuardState = NoXXXApp.instance.store.state.collectAsStateWithLifecycle().value
 
-/** Today: the day's recovery focus. Protection details live on their own tab. */
+/** Today: the streak ring, today's verse, goals and help. Protection details live on their own tab. */
 fun LazyListScope.todayScreen(refresh: Int, openProtection: () -> Unit) {
     item { AttentionBanner(refresh, openProtection) }
-    item { StreakHero() }
+    item { RingClock() }
+    item { TodayScripture() }
     item { GoalsCard() }
-    item { DailyScriptureCard() }
     item { StruggleCard() }
 }
 
-/** Progress: the streak timeline, journal and block stats. */
+/** Progress: the numbers, this week's blocks, milestones and the journal. */
 fun LazyListScope.progressScreen() {
-    item { StreakCard() }
-    item { JournalCard() }
-    statsSection()
+    item { ProgressSummary() }
+    item { WeekBlocksCard() }
+    item { MilestoneTimeline() }
+    item { JournalLedger() }
 }
 
 enum class ProtectionSection(val label: String) {
     OVERVIEW("Overview"), WEB("Websites"), APPS("Apps"), IMAGES("Images"), LOCK("Lock")
 }
 
-/** Protection: everything about blocking, split into sections so no one screen gets long. */
+/** Protection: a status list on the overview; each section opens from a row and has a way back. */
 fun LazyListScope.protectionScreen(
     actions: PolicyActions,
     refresh: Int,
@@ -88,13 +89,13 @@ fun LazyListScope.protectionScreen(
     section: ProtectionSection,
     onSection: (ProtectionSection) -> Unit,
 ) {
-    item { SectionSwitcher(section, onSection) }
+    if (section != ProtectionSection.OVERVIEW) item { BackRow { onSection(ProtectionSection.OVERVIEW) } }
     when (section) {
         ProtectionSection.OVERVIEW -> {
-            item { HeroCard(refresh, openGuide) }
+            item { OverviewStatus(refresh, openGuide) }
             item { TamperAlertCard() }
             item { LockStatusCard(actions) }
-            item { SetupSummary(refresh, openGuide) }
+            item { SectionRows(onSection) }
             item { RecentBlocks() }
         }
         ProtectionSection.WEB -> webScreen(actions, refresh)
@@ -104,16 +105,18 @@ fun LazyListScope.protectionScreen(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/** The seal and status rows when all is well; otherwise what needs doing and how to fix it. */
 @Composable
-private fun SectionSwitcher(section: ProtectionSection, onSection: (ProtectionSection) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        ProtectionSection.entries.forEach { s ->
-            FilterChip(selected = s == section, onClick = { onSection(s) }, label = { Text(s.label) })
-        }
+private fun OverviewStatus(refresh: Int, openGuide: () -> Unit) {
+    val state = guardState()
+    val status = rememberSetupStatus(refresh)
+    val p = state.policy
+    val healthy = status.accessibility && (!p.requirePrivateDns || status.dns.filtering || !status.dns.online)
+    if (state.committed && healthy) {
+        ProtectedSeal(refresh)
+    } else {
+        HeroCard(refresh, openGuide)
+        SetupSummary(refresh, openGuide)
     }
 }
 

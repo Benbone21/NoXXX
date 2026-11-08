@@ -5,6 +5,20 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,6 +42,7 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +52,8 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -161,15 +178,24 @@ private fun Root() {
 private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int, openGuide: () -> Unit) {
     var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
     var section by rememberSaveable { mutableStateOf(ProtectionSection.OVERVIEW) }
+    var pickPalette by remember { mutableStateOf(false) }
+    if (pickPalette) PaletteDialog { pickPalette = false }
     val scrollBehavior = key(tab) { TopAppBarDefaults.exitUntilCollapsedScrollBehavior() }
 
+    val night = LocalPalette.current == Palette.NIGHT
+    val colors = MaterialTheme.colorScheme
+    if (night) NightBackdrop(Modifier.fillMaxSize())
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        containerColor = if (night) Color.Transparent else colors.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             LargeTopAppBar(
-                title = { Text(tab.title) },
+                title = { Text(if (tab == Tab.TODAY) greeting() else tab.title) },
                 actions = {
+                    IconButton(onClick = { pickPalette = true }) {
+                        Icon(Icons.Outlined.Palette, contentDescription = "Colors")
+                    }
                     if (tab == Tab.PROTECTION && !guardState().committed) {
                         IconButton(onClick = openGuide) {
                             Icon(Icons.Outlined.Checklist, contentDescription = "Setup guide")
@@ -177,22 +203,35 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
                     }
                 },
                 scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = if (night) Color.Transparent else colors.background,
+                    scrolledContainerColor = if (night) Color(0xE60B0F26) else colors.background,
+                ),
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = if (night) Color(0xF00D0C22) else colors.background, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
                         onClick = { tab = t },
                         icon = { Icon(if (tab == t) t.selectedIcon else t.icon, contentDescription = null) },
                         label = { Text(t.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = colors.primary, selectedTextColor = colors.primary,
+                            indicatorColor = colors.primary.copy(alpha = 0.14f),
+                            unselectedIconColor = colors.onSurfaceVariant, unselectedTextColor = colors.onSurfaceVariant,
+                        ),
                     )
                 }
             }
         },
     ) { padding ->
-        key(tab, section) {
+        AnimatedContent(
+            targetState = tab to section,
+            transitionSpec = { (fadeIn(tween(220, delayMillis = 60)) + scaleIn(tween(220), initialScale = 0.97f)) togetherWith fadeOut(tween(120)) },
+            label = "tab",
+        ) { (shownTab, shownSection) ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -202,10 +241,10 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
                     bottom = padding.calculateBottomPadding() + 16.dp,
                 ),
             ) {
-                when (tab) {
+                when (shownTab) {
                     Tab.TODAY -> todayScreen(refresh) { tab = Tab.PROTECTION; section = ProtectionSection.OVERVIEW }
                     Tab.PROGRESS -> progressScreen()
-                    Tab.PROTECTION -> protectionScreen(actions, refresh, openGuide, section) { section = it }
+                    Tab.PROTECTION -> protectionScreen(actions, refresh, openGuide, shownSection) { section = it }
                 }
             }
         }
@@ -241,4 +280,40 @@ private fun PinGate(onUnlock: () -> Unit) {
             }
         }
     }
+}
+
+/** "Good morning" and so on, for the Today tab. */
+private fun greeting(): String = when (java.time.LocalTime.now().hour) {
+    in 4..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+@Composable
+private fun PaletteDialog(onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val current = Appearance.palette.collectAsStateWithLifecycle().value
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Colors") },
+        text = {
+            Column {
+                Palette.entries.forEach { p ->
+                    Row(
+                        Modifier.fillMaxWidth().selectable(selected = p == current, role = Role.RadioButton) {
+                            Appearance.set(ctx, p)
+                        }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = p == current, onClick = null)
+                        Column(Modifier.padding(start = 12.dp)) {
+                            Text(p.label, style = MaterialTheme.typography.bodyLarge)
+                            Text(p.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+    )
 }

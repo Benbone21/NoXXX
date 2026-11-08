@@ -4,6 +4,18 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +44,8 @@ import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -58,6 +72,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
@@ -72,6 +89,8 @@ import com.noxxx.guard.recovery.Milestones
 import com.noxxx.guard.recovery.Passage
 import com.noxxx.guard.recovery.RecoveryState
 import com.noxxx.guard.recovery.Scriptures
+import androidx.compose.ui.text.font.FontWeight
+import com.noxxx.guard.recovery.StreakTime
 import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.time.LocalDate
@@ -99,101 +118,26 @@ fun PassageView(passage: Passage, onOpen: (String) -> Unit) {
     }
 }
 
-@Composable
-fun DailyScriptureCard() {
-    val ctx = LocalContext.current
-    val list = Scriptures.passages.collectAsStateWithLifecycle().value
-    val passage = Scriptures.forDay(LocalDate.now(), list) ?: return
-    SectionCard("Today's scripture", icon = Icons.Filled.AutoStories) {
-        PassageView(passage) { openLink(ctx, it) }
-    }
-}
-
 /** A clear, always-visible way to get help in the moment. */
 @Composable
 fun StruggleCard() {
     var open by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    val night = LocalPalette.current == Palette.NIGHT
+    val colors = MaterialTheme.colorScheme
+    Button(
+        onClick = { open = true },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(54.dp),
+        shape = CircleShape,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (night) colors.primary else colors.secondary,
+            contentColor = if (night) colors.onPrimary else colors.onSecondary,
         ),
     ) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(Icons.Filled.SelfImprovement, contentDescription = null, modifier = Modifier.size(36.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Having a hard moment?", style = MaterialTheme.typography.titleMedium)
-                Text("A verse, a minute of breathing and a few things to do instead.",
-                    style = MaterialTheme.typography.bodyMedium)
-            }
-            Button(onClick = { open = true }) { Text("Help") }
-        }
+        Icon(Icons.Filled.SelfImprovement, contentDescription = null)
+        Spacer(Modifier.size(10.dp))
+        Text("Having a hard moment?", style = MaterialTheme.typography.titleMedium)
     }
     if (open) StruggleDialog { open = false }
-}
-
-/** The streak at a glance, for Today: days clean and progress to the next milestone. */
-@Composable
-fun StreakHero() {
-    val state = guardState()
-    val days = ((System.currentTimeMillis() - state.streakStartWallMs) / 86_400_000L).coerceAtLeast(0)
-    val next = Milestones.next(days)
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        ),
-    ) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("$days", style = MaterialTheme.typography.displayLarge)
-                Text(if (days == 1L) "day clean" else "days clean", style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 12.dp))
-            }
-            Milestones.reached(days)?.let { Text(it.title, style = MaterialTheme.typography.titleMedium) }
-            if (next != null) {
-                LinearProgressIndicator(progress = { Milestones.progress(days) }, modifier = Modifier.fillMaxWidth())
-                val left = next.days - days
-                Text("$left ${if (left == 1L) "day" else "days"} to ${next.title.lowercase()}", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
-/** Streak milestones, adapted from Quitter: the next one to aim for, and the whole timeline. */
-@Composable
-fun MilestoneSection(days: Long) {
-    var showAll by remember { mutableStateOf(false) }
-    val next = Milestones.next(days)
-    val reached = Milestones.reached(days)
-    if (reached != null) {
-        Text(reached.title, style = MaterialTheme.typography.titleSmall)
-        Text(reached.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    if (next != null) {
-        val left = next.days - days
-        LinearProgressIndicator(progress = { Milestones.progress(days) }, modifier = Modifier.fillMaxWidth())
-        Text("Next: ${next.title} in $left ${if (left == 1L) "day" else "days"}", style = MaterialTheme.typography.bodySmall)
-    }
-    TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Hide milestones" else "All milestones") }
-    if (showAll) {
-        Milestones.ALL.forEach { m ->
-            val done = days >= m.days
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(if (done) Icons.Filled.TaskAlt else Icons.Filled.Flag, contentDescription = if (done) "Reached" else null,
-                    tint = if (done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
-                Column {
-                    Text("Day ${m.days} · ${m.title}", style = MaterialTheme.typography.labelLarge)
-                    Text(m.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -205,7 +149,17 @@ fun GoalsCard() {
     var newGoal by remember { mutableStateOf("") }
     val doneCount = state.goals.count { state.isDone(it.id, today) }
     SectionCard("Today's goals", if (state.goals.isEmpty()) "Add something small you can do every day." else
-        "$doneCount of ${state.goals.size} done", icon = Icons.Filled.TaskAlt) {
+        if (doneCount == state.goals.size) "All done today. Well done!" else "$doneCount of ${state.goals.size} done",
+        icon = Icons.Filled.TaskAlt) {
+        if (state.goals.isNotEmpty()) {
+            val goalProgress by animateFloatAsState(doneCount.toFloat() / state.goals.size, tween(500), label = "goals")
+            LinearProgressIndicator(
+                progress = { goalProgress },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondary,
+                trackColor = MaterialTheme.colorScheme.secondaryContainer,
+            )
+        }
         state.goals.forEach { goal ->
             val streak = state.streak(goal.id, today)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -232,28 +186,6 @@ fun GoalsCard() {
         }
         TextButton(onClick = { editing = !editing }) { Text(if (editing) "Done editing" else "Edit goals") }
     }
-}
-
-@Composable
-fun JournalCard() {
-    val state = recoveryState()
-    var writing by remember { mutableStateOf(false) }
-    var showAll by remember { mutableStateOf(false) }
-    val fmt = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT) }
-    SectionCard("Journal", if (state.journal.isEmpty()) "Write how today went: what helped, what was hard." else null,
-        icon = Icons.Filled.EditNote) {
-        FilledTonalButton(onClick = { writing = true }) { Text("Write an entry") }
-        state.journal.take(if (showAll) 50 else 3).forEach { e ->
-            HorizontalDivider()
-            Text("${fmt.format(Date(e.timeMs))} · ${MOODS[e.mood - 1]}" + (if (e.slipped) " · Slipped" else "") +
-                (if (e.urge > 0) " · Urge ${e.urge}/5" else ""), style = MaterialTheme.typography.labelLarge)
-            if (e.triggers.isNotEmpty()) Text(e.triggers.joinToString(), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (e.note.isNotBlank()) Text(e.note, style = MaterialTheme.typography.bodyMedium)
-        }
-        if (state.journal.size > 3) TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Show less" else "Show more") }
-    }
-    if (writing) JournalDialog(slipped = false) { writing = false }
 }
 
 private val MOODS = listOf("Rough", "Low", "Okay", "Good", "Great")

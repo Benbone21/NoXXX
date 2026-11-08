@@ -1,11 +1,42 @@
 package com.noxxx.guard.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -20,7 +51,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,7 +59,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -66,69 +95,121 @@ fun startProtection() {
     app.recovery.update { it.copy(plannedLockdownDays = 0) }
 }
 
+/** One full-screen question: a large animated icon, the question, a hint, then big answer cards. */
 @Composable
-private fun <T> Choices(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
-    Column {
-        options.forEach { o ->
-            Row(
-                Modifier.fillMaxWidth().selectable(selected = o == selected, role = Role.RadioButton) { onSelect(o) }
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = o == selected, onClick = null)
-                Text(label(o), Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyLarge)
+private fun Question(icon: ImageVector, question: String, hint: String?, content: @Composable ColumnScope.() -> Unit) {
+    val pop = remember { Animatable(0.5f) }
+    LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)) }
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(
+            Modifier.size(84.dp).scale(pop.value).clip(CircleShape)
+                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer))),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, contentDescription = null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary) }
+        Text(question, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+        if (hint != null) Text(hint, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    }
+}
+
+/** A large tappable answer that lights up when chosen. */
+@Composable
+private fun OptionCard(text: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val container by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, label = "option")
+    val border by animateDpAsState(if (selected) 2.dp else 0.dp, label = "border")
+    val scale by animateFloatAsState(if (selected) 1.02f else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "scale")
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().scale(scale),
+        shape = MaterialTheme.shapes.large,
+        color = container,
+        border = if (selected) BorderStroke(border, colors.primary) else null,
+    ) {
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            AnimatedVisibility(selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = "Selected", tint = colors.primary)
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+/** Single choice: picking an answer moves on to the next question after a beat. */
 @Composable
-private fun MultiChips(options: List<String>, selected: Set<String>, onChange: (Set<String>) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { o ->
-            FilterChip(o in selected, { onChange(if (o in selected) selected - o else selected + o) }, label = { Text(o) })
+private fun <T> SingleChoice(options: List<T>, selected: T?, label: (T) -> String, onSelect: (T) -> Unit, next: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    options.forEach { o ->
+        OptionCard(label(o), o == selected) {
+            onSelect(o)
+            scope.launch { delay(350); next() }
         }
     }
 }
 
 @Composable
-fun AboutYouPage() {
+private fun MultiChoice(options: List<String>, selected: Set<String>, onChange: (Set<String>) -> Unit) {
+    options.forEach { o -> OptionCard(o, o in selected) { onChange(if (o in selected) selected - o else selected + o) } }
+}
+
+@Composable
+fun DurationQuestion(next: () -> Unit) {
     val a = recoveryState().answers ?: Answers()
-    PageHeader(Icons.Filled.Person, "A little about you",
-        "A few private questions so NoXXX can suggest settings and goals that fit. Answers never leave your phone.") {
-        Text("How long has this been a struggle?", style = MaterialTheme.typography.titleSmall)
-        Choices(Duration.entries, a.duration, { it.label }) { v -> setAnswers { it.copy(duration = v) } }
-        Text("In the last month, how often?", style = MaterialTheme.typography.titleSmall)
-        Choices(Frequency.entries, a.frequency, { it.label }) { v -> setAnswers { it.copy(frequency = v) } }
-        Text("How have past attempts gone?", style = MaterialTheme.typography.titleSmall)
-        Choices(Attempts.entries, a.attempts, { it.label }) { v -> setAnswers { it.copy(attempts = v) } }
+    Question(Icons.Filled.HourglassTop, "How long has this been a struggle?",
+        "Private: answers never leave your phone. They help NoXXX suggest what fits you.") {
+        SingleChoice(Duration.entries, a.duration, { it.label }, { v -> setAnswers { it.copy(duration = v) } }, next)
     }
 }
 
 @Composable
-fun TriggersPage() {
+fun FrequencyQuestion(next: () -> Unit) {
     val a = recoveryState().answers ?: Answers()
-    PageHeader(Icons.Filled.Psychology, "What sets it off",
-        "Knowing your patterns is half the battle. Pick any that fit.") {
-        Text("When is it hardest?", style = MaterialTheme.typography.titleSmall)
-        MultiChips(Interview.HARD_TIMES, a.hardTimes) { v -> setAnswers { it.copy(hardTimes = v) } }
-        Text("Where does it usually start?", style = MaterialTheme.typography.titleSmall)
-        MultiChips(Interview.SOURCES, a.sources) { v -> setAnswers { it.copy(sources = v) } }
+    Question(Icons.Filled.CalendarMonth, "In the last month, how often?", "Honest answers get you the right amount of help.") {
+        SingleChoice(Frequency.entries, a.frequency, { it.label }, { v -> setAnswers { it.copy(frequency = v) } }, next)
     }
 }
 
 @Composable
-fun FaithPage() {
+fun AttemptsQuestion(next: () -> Unit) {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.Replay, "How have past attempts gone?", null) {
+        SingleChoice(Attempts.entries, a.attempts, { it.label }, { v -> setAnswers { it.copy(attempts = v) } }, next)
+    }
+}
+
+@Composable
+fun HardTimesQuestion() {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.Bedtime, "When is it hardest?", "Pick any that fit.") {
+        MultiChoice(Interview.HARD_TIMES, a.hardTimes) { v -> setAnswers { it.copy(hardTimes = v) } }
+    }
+}
+
+@Composable
+fun SourcesQuestion() {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.Psychology, "Where does it usually start?", "Pick any that fit.") {
+        MultiChoice(Interview.SOURCES, a.sources) { v -> setAnswers { it.copy(sources = v) } }
+    }
+}
+
+@Composable
+fun SupportQuestion(next: () -> Unit) {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.Person, "Is there someone you trust to hold a partner password?",
+        "A parent, spouse, bishop or close friend. They can approve a change or end a lockdown early.") {
+        SingleChoice(listOf(true, false), a.hasSupport, { if (it) "Yes, I have someone" else "Not right now" },
+            { v -> setAnswers { it.copy(hasSupport = v) } }, next)
+    }
+}
+
+@Composable
+fun FaithQuestion() {
     val a = recoveryState().answers ?: Answers()
     rememberInstalledApps() // start loading, so suggested app blocks are ready on the next page
-    PageHeader(Icons.Filled.Favorite, "Support and faith",
-        "Recovery goes better with help from heaven and from people who love you.") {
-        Text("Is there someone you trust to hold a partner password?", style = MaterialTheme.typography.titleSmall)
-        Hint("A parent, spouse, bishop or close friend. They can approve a change or end a lockdown early.")
-        Choices(listOf(true, false), a.hasSupport, { if (it) "Yes" else "Not right now" }) { v -> setAnswers { it.copy(hasSupport = v) } }
-        Text("Which daily habits do you want to build?", style = MaterialTheme.typography.titleSmall)
-        MultiChips(Interview.FAITH, a.faith) { v -> setAnswers { it.copy(faith = v) } }
+    Question(Icons.Filled.Favorite, "Which daily habits do you want to build?",
+        "Recovery goes better with help from heaven. These become your daily goals.") {
+        MultiChoice(Interview.FAITH, a.faith) { v -> setAnswers { it.copy(faith = v) } }
     }
 }
 

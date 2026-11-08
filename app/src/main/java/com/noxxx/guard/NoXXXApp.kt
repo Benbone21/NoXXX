@@ -9,6 +9,7 @@ import com.noxxx.guard.data.DiagEntry
 import com.noxxx.guard.data.BlockLog
 import com.noxxx.guard.data.DiagnosticsLog
 import com.noxxx.guard.recovery.RecoveryStore
+import com.noxxx.guard.ui.Appearance
 import com.noxxx.guard.recovery.Scriptures
 import com.noxxx.guard.data.GuardStore
 import com.noxxx.guard.data.NetworkTime
@@ -45,6 +46,7 @@ class NoXXXApp : Application() {
         diagnostics = DiagnosticsLog(this)
         blockLog = BlockLog(this, diagnostics)
         recovery = RecoveryStore(this)
+        Appearance.load(this)
         TamperNotifier.ensureChannel(this)
         appScope.launch(Dispatchers.IO) {
             blocklist.loadBundled(this@NoXXXApp)

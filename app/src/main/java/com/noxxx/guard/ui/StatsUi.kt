@@ -52,93 +52,10 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.min
 
-private const val DAY_MS = 86_400_000L
-
-fun LazyListScope.statsSection() {
-    item { TotalsRow() }
-    item { WeekCard() }
-    item { ByTypeCard() }
-}
-
-private fun days(ms: Long) = (ms / DAY_MS).coerceAtLeast(0)
-
-private fun dayWord(n: Long) = if (n == 1L) "day" else "days"
-
-@Composable
-fun StreakCard() {
-    val state = guardState()
-    var confirm by remember { mutableStateOf(false) }
-    var journal by remember { mutableStateOf(false) }
-    val current = System.currentTimeMillis() - state.streakStartWallMs
-    val currentDays = days(current)
-    val bestDays = days(maxOf(state.bestStreakMs, current))
-
-    SectionCard("Streak", icon = Icons.Filled.LocalFireDepartment) {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(currentDays.toString(), style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary)
-            Text("${dayWord(currentDays)} clean", style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 10.dp))
-        }
-        Text("Best: $bestDays ${dayWord(bestDays)}", style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        MilestoneSection(currentDays)
-        TextButton(onClick = { confirm = true }) { Text("I slipped, reset streak") }
-    }
-
-    if (confirm) {
-        AlertDialog(
-            onDismissRequest = { confirm = false },
-            title = { Text("Reset your streak?") },
-            text = { Text("A slip doesn't erase your progress, and your best streak is kept. Note what triggered it, then start again.") },
-            confirmButton = {
-                TextButton(onClick = { NoXXXApp.instance.store.resetStreak(); confirm = false; journal = true }) { Text("Reset") }
-            },
-            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
-        )
-    }
-    if (journal) JournalDialog(slipped = true) { journal = false }
-}
-
-@Composable
-private fun TotalsRow() {
-    val stats = NoXXXApp.instance.blockLog.stats.collectAsStateWithLifecycle().value
-    val week = stats.lastDays(7).sumOf { it.second }
-    Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        StatTile("Today", stats.on(LocalDate.now()).toString(), Modifier.weight(1f))
-        StatTile("This week", "%,d".format(week), Modifier.weight(1f))
-        StatTile("All time", "%,d".format(stats.total), Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun StatTile(label: String, value: String, modifier: Modifier) {
-    Card(modifier = modifier.fillMaxHeight(), shape = MaterialTheme.shapes.large) {
-        Column(Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineMedium)
-            Text("blocked", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun WeekCard() {
-    val stats = NoXXXApp.instance.blockLog.stats.collectAsStateWithLifecycle().value
-    val days = stats.lastDays(7)
-    SectionCard("Blocks, last 7 days", "Tap a day to see its count.", icon = Icons.Filled.BarChart) {
-        if (days.all { it.second == 0 }) {
-            Hint("Nothing blocked this week.")
-        }
-        WeekChart(days)
-    }
-}
 
 /** Single-series column chart: one hue, rounded data-ends on a hairline baseline, one value label at a time. */
 @Composable
-private fun WeekChart(days: List<Pair<LocalDate, Int>>) {
+internal fun WeekChart(days: List<Pair<LocalDate, Int>>) {
     val barColor = MaterialTheme.colorScheme.primary
     val baselineColor = MaterialTheme.colorScheme.outlineVariant
     val selectedTrack = MaterialTheme.colorScheme.surfaceVariant
@@ -212,25 +129,6 @@ private fun WeekChart(days: List<Pair<LocalDate, Int>>) {
                     color = if (i == selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ByTypeCard() {
-    val events = NoXXXApp.instance.blockLog.events.collectAsStateWithLifecycle().value
-    val since = System.currentTimeMillis() - 7 * DAY_MS
-    val counts = events.filter { it.timeMs >= since }.groupingBy { it.kind }.eachCount()
-        .entries.sortedByDescending { it.value }
-    if (counts.isEmpty()) return
-    SectionCard("By type, last 7 days") {
-        counts.forEach { (kind, n) ->
-            ListItem(
-                headlineContent = { Text(kindLabel(kind)) },
-                leadingContent = { Icon(kindIcon(kind), contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                trailingContent = { Text("%,d".format(n), style = MaterialTheme.typography.titleMedium) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
         }
     }
 }

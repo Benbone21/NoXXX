@@ -68,7 +68,9 @@ import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.Sensitivity
 import com.noxxx.guard.policy.formatMinutes
 
-private enum class Page { WELCOME, ABOUT, TRIGGERS, FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, COOL_OFF, FINISH }
+private enum class Page {
+    WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, COOL_OFF, FINISH,
+}
 
 private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
 
@@ -87,7 +89,7 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
     val installed = rememberInstalledApps().map { it.pkg }.toSet()
     fun go(delta: Int) {
         // Leaving the interview forward: fill in goals, lockdown and protection from the answers.
-        if (current == Page.FAITH && delta > 0) applyInterview(actions, installed)
+        if (current == Page.Q_FAITH && delta > 0) applyInterview(actions, installed)
         current = pages[(index + delta).coerceIn(0, pages.lastIndex)]
     }
     BackHandler(enabled = index > 0) { go(-1) }
@@ -157,9 +159,13 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
             ) {
                 when (page) {
                     Page.WELCOME -> WelcomePage()
-                    Page.ABOUT -> AboutYouPage()
-                    Page.TRIGGERS -> TriggersPage()
-                    Page.FAITH -> FaithPage()
+                    Page.Q_DURATION -> DurationQuestion { go(1) }
+                    Page.Q_FREQUENCY -> FrequencyQuestion { go(1) }
+                    Page.Q_ATTEMPTS -> AttemptsQuestion { go(1) }
+                    Page.Q_HARD_TIMES -> HardTimesQuestion()
+                    Page.Q_SOURCES -> SourcesQuestion()
+                    Page.Q_SUPPORT -> SupportQuestion { go(1) }
+                    Page.Q_FAITH -> FaithQuestion()
                     Page.GOALS -> GoalsPage()
                     Page.LOCKDOWN -> LockdownPlanPage()
                     Page.PROTECTIONS -> ProtectionsPage(actions, status)
