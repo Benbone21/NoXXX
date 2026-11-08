@@ -52,6 +52,63 @@ object TamperRules {
         return scan.reason
     }
 
+    /**
+     * Whether a screen opened from NoXXX's own setup buttons is the one that grace allows. Matched by
+     * window class, or for device admin by its text, because some phones (Samsung, Android 16) show
+     * activation as a plain dialog. Deactivation ("Deactivating this admin app…") never matches.
+     */
+    fun graceAllows(hint: String?, adminGrace: Boolean, windowClass: String?, title: String?): Boolean {
+        if (hint != null && windowClass?.contains(hint) == true) return true
+        if (!adminGrace) return false
+        val t = title?.lowercase() ?: return false
+        return "activating this admin app" in t && "deactivating" !in t
+    }
+
+    /** Window class of AOSP's device-admin screen (activation and deactivation both use it). */
+    const val ADMIN_WINDOW_HINT = "DeviceAdminAdd"
+
+    /** Text (lowercase) only shown on the screen that *adds* a device admin. */
+    val ADMIN_ACTIVATION_PHRASES = listOf(
+        "activating this admin app", "activate this device admin app", "activate device admin app",
+    )
+
+    /** Text (lowercase) that only appears where an admin is switched off. */
+    private const val DEACTIVATION_MARK = "deactivat"
+
+    /**
+     * Whether the screen is the device-admin *activation* screen, which only ever adds protection.
+     * Judged by what is on screen, not only by the window class or event title, because those can be
+     * stale or missing (Samsung, Android 16, shows activation as a plain androidx AlertDialog).
+     *  - any sign of deactivation or a stop/uninstall button: never,
+     *  - activation text on screen: yes,
+     *  - another page that names NoXXX: no,
+     *  - nothing on screen yet (tree still loading): fall back to the window class / title.
+     */
+    fun isAdminActivation(nodes: List<NodeFacts>, windowTitle: String?, windowClass: String?, appLabel: String): Boolean {
+        val texts = nodes.flatMap { listOfNotNull(it.text, it.description) }.map { it.lowercase() }
+        if (texts.any { DEACTIVATION_MARK in it || it.trim() in DANGEROUS_ACTIONS }) return false
+        if (texts.any { t -> ADMIN_ACTIVATION_PHRASES.any { it in t } }) return true
+        val label = appLabel.lowercase()
+        if (texts.any { label in it }) return false
+        return graceAllows(ADMIN_WINDOW_HINT, adminGrace = true, windowClass, windowTitle)
+    }
+
+    /** What [reasonDuringAdminGrace] decided: the rule that still blocks (if any) and whether it is the activation screen. */
+    data class AdminGraceVerdict(val reason: Reason?, val activation: Boolean)
+
+    /**
+     * Judges a screen while NoXXX's own "Turn on uninstall protection" grace is active. On the
+     * activation screen only the title rule is waived (its title names NoXXX); every rule that looks
+     * at the screen's controls (toggles, stop/uninstall buttons, the DNS field, the installer) still
+     * applies, so the grace can't be used to reach anything that switches NoXXX off.
+     */
+    fun reasonDuringAdminGrace(
+        nodes: List<NodeFacts>, windowTitle: String?, windowClass: String?, appLabel: String, dnsHost: String?, pkg: String,
+    ): AdminGraceVerdict {
+        val activation = isAdminActivation(nodes, windowTitle, windowClass, appLabel)
+        return AdminGraceVerdict(reason(nodes, windowTitle.takeUnless { activation }, appLabel, dnsHost, pkg), activation)
+    }
+
     fun mentions(text: CharSequence?, appLabel: String) = text?.toString()?.contains(appLabel, ignoreCase = true) == true
 
     /** Takes nodes one at a time so a screen walk can stop at the first node that settles it. */

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome (themed icon) layer: the same shield outline with a sunrise inside it
+  ("joy cometh in the morning"). Everything sits inside the 66dp adaptive-icon safe zone.
+  Same shapes as ic_launcher_foreground.xml in one colour; keep the two in sync.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Shield outline -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M54,30 L74,37 L74,53 C74,66 65,75 54,80 C43,75 34,66 34,53 L34,37 Z" />
+    <!-- Half sun -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M47,61 A7,7 0 0,1 61,61 Z" />
+    <!-- Horizon -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M41,61 L67,61" />
+    <!-- Rays -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M54,50.5 L54,47 M60.02,52.4 L62.03,49.53 M47.98,52.4 L45.97,49.53 M63.87,57.41 L67.16,56.21 M44.13,57.41 L40.84,56.21" />
+</vector>

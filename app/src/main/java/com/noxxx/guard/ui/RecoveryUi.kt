@@ -122,15 +122,14 @@ fun PassageView(passage: Passage, onOpen: (String) -> Unit) {
 @Composable
 fun StruggleCard() {
     var open by remember { mutableStateOf(false) }
-    val night = LocalPalette.current == Palette.NIGHT
     val colors = MaterialTheme.colorScheme
     Button(
         onClick = { open = true },
         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).height(54.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (night) colors.primary else colors.secondary,
-            contentColor = if (night) colors.onPrimary else colors.onSecondary,
+            containerColor = colors.secondary,
+            contentColor = colors.onSecondary,
         ),
     ) {
         Icon(Icons.Filled.SelfImprovement, contentDescription = null)

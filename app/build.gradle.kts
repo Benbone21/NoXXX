@@ -63,6 +63,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG keeps dev-only tools (the detection archive) out of release builds.
+        buildConfig = true
     }
     androidResources {
         noCompress += "tflite"

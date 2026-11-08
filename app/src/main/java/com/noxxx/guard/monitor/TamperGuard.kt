@@ -32,41 +32,41 @@ object TamperGuard {
      * A short pass for a system screen NoXXX itself opens during setup. Each kind only relaxes the
      * check it needs, so the pass can't be used to reach other screens.
      */
-    enum class Grace(val windowClassHint: String?) {
+    enum class Grace(val windowClassHint: String?, val durationMs: Long = 45_000, val maxMs: Long = durationMs) {
         /** Private DNS dialog: allow editing the hostname. */
         PRIVATE_DNS(null),
-        /** Device admin activation screen. */
-        DEVICE_ADMIN("DeviceAdminAdd"),
+        /**
+         * Device admin activation screen. Only waives the title rule on a screen that shows activation
+         * text and nothing that deactivates (see [TamperRules.reasonDuringAdminGrace]), so it is safe
+         * to keep for a few minutes: long enough to read the screen and tap Activate.
+         */
+        DEVICE_ADMIN(TamperRules.ADMIN_WINDOW_HINT, durationMs = 120_000, maxMs = 600_000),
         /** Battery-optimization exemption prompt. */
         BATTERY("RequestIgnoreBatteryOptimizations"),
         /** Only offered while the guard service is off, so there is nothing to protect yet. */
         FULL(null),
     }
 
-    @Volatile
-    private var grace: Grace? = null
+    private val grace = SetupGrace()
 
-    @Volatile
-    private var graceUntil = 0L
+    private fun now() = SystemClock.elapsedRealtime()
 
-    fun grantGrace(kind: Grace, ms: Long = 45_000) {
-        grace = kind
-        graceUntil = SystemClock.elapsedRealtime() + ms
-    }
+    fun grantGrace(kind: Grace) = grace.grant(kind, now())
 
-    fun endGrace() {
-        grace = null
-        graceUntil = 0
-    }
+    /** Ends the pass. [keep] leaves a pass of that kind running (see MainActivity.onResume). */
+    fun endGrace(keep: Grace? = null) = grace.end(keep)
 
-    fun activeGrace(): Grace? = grace.takeIf { SystemClock.elapsedRealtime() < graceUntil }
+    fun activeGrace(): Grace? = grace.active(now())
 
-    /** True if the current window may be shown despite naming the app. */
-    fun allowsWindow(windowClass: String?): Boolean {
+    /**
+     * True if the current window may be shown despite naming the app, judged by window class alone.
+     * The device-admin grace is not decided here: it needs the screen's content ([sensitiveReason]).
+     */
+    fun allowsWindow(windowClass: String?, title: String? = null): Boolean {
         val g = activeGrace() ?: return false
         if (g == Grace.FULL) return true
-        val hint = g.windowClassHint ?: return false
-        return windowClass?.contains(hint) == true
+        if (g == Grace.DEVICE_ADMIN) return false
+        return TamperRules.graceAllows(g.windowClassHint, false, windowClass, title)
     }
 
     /**
@@ -76,26 +76,56 @@ object TamperGuard {
     fun isSensitive(root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?) =
         sensitiveReason(root, windowTitle, appLabel, dnsHost) != null
 
-    /** Which tamper rule matched this screen, or null if it's safe. */
-    fun sensitiveReason(root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?): TamperRules.Reason? {
-        val scan = TamperRules.Scan(windowTitle, appLabel, dnsHost, root.packageName?.toString().orEmpty())
+    /**
+     * Which tamper rule matched this screen, or null if it's safe. While the device-admin grace is
+     * active the whole screen is read so the activation screen can be told apart from deactivation;
+     * seeing the activation screen keeps that grace alive.
+     */
+    fun sensitiveReason(
+        root: AccessibilityNodeInfo, windowTitle: String?, appLabel: String, dnsHost: String?, windowClass: String? = null,
+    ): TamperRules.Reason? {
+        val pkg = root.packageName?.toString().orEmpty()
+        if (activeGrace() == Grace.DEVICE_ADMIN) {
+            val verdict = TamperRules.reasonDuringAdminGrace(collect(root), windowTitle, windowClass, appLabel, dnsHost, pkg)
+            if (verdict.activation) grace.extend(Grace.DEVICE_ADMIN, now())
+            return verdict.reason
+        }
+        val scan = TamperRules.Scan(windowTitle, appLabel, dnsHost, pkg)
         if (scan.sensitive) return scan.reason
         val queue = ArrayDeque<AccessibilityNodeInfo>()
         queue.add(root)
         var visited = 0
         while (queue.isNotEmpty() && visited++ < MAX_NODES) {
             val node = queue.removeFirst()
-            val facts = NodeFacts(
-                text = node.text?.toString(),
-                description = node.contentDescription?.toString(),
-                checkable = node.isCheckable,
-                editable = node.isEditable,
-            )
-            if (scan.offer(facts)) return scan.reason
+            if (scan.offer(facts(node))) return scan.reason
             for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
         }
         return null
     }
+
+    /** True if the device-admin grace is active and this is its activation screen. */
+    fun isAdminActivationInFront(root: AccessibilityNodeInfo, windowTitle: String?, windowClass: String?, appLabel: String) =
+        activeGrace() == Grace.DEVICE_ADMIN && TamperRules.isAdminActivation(collect(root), windowTitle, windowClass, appLabel)
+
+    /** Every node's facts, breadth first, up to [MAX_NODES]. */
+    fun collect(root: AccessibilityNodeInfo): List<NodeFacts> {
+        val out = ArrayList<NodeFacts>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty() && out.size < MAX_NODES) {
+            val node = queue.removeFirst()
+            out += facts(node)
+            for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+        }
+        return out
+    }
+
+    private fun facts(node: AccessibilityNodeInfo) = NodeFacts(
+        text = node.text?.toString(),
+        description = node.contentDescription?.toString(),
+        checkable = node.isCheckable,
+        editable = node.isEditable,
+    )
 
     private const val MAX_NODES = 800
 }

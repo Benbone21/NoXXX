@@ -29,7 +29,7 @@ object TamperNotifier {
         }
         val pi = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentTitle("Protection is off")
             .setContentText("The guard service was disabled. Your streak has been reset. Tap to re-enable.")
             .setStyle(NotificationCompat.BigTextStyle()

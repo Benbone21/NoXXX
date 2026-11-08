@@ -1,19 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Temple launcher foreground: a gold shield outline with a sunrise inside it
+  ("joy cometh in the morning"). Everything sits inside the 66dp adaptive-icon safe zone.
+  The monochrome twin for themed icons is ic_launcher_monochrome.xml; keep the two in sync.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Shield -->
-    <path
-        android:fillColor="#FF6FD3A4"
-        android:pathData="M54,26 L76,34 L76,52 C76,66 66,77 54,82 C42,77 32,66 32,52 L32,34 Z" />
-    <!-- Check mark -->
+    <!-- Shield outline -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#FF102A20"
-        android:strokeWidth="5"
+        android:strokeColor="#FFD4B26A"
+        android:strokeWidth="3.6"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M44,54 L51,61 L65,47" />
+        android:pathData="M54,30 L74,37 L74,53 C74,66 65,75 54,80 C43,75 34,66 34,53 L34,37 Z" />
+    <!-- Half sun -->
+    <path
+        android:fillColor="#FFD4B26A"
+        android:pathData="M47,61 A7,7 0 0,1 61,61 Z" />
+    <!-- Horizon -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD4B26A"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M41,61 L67,61" />
+    <!-- Rays -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD4B26A"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M54,50.5 L54,47 M60.02,52.4 L62.03,49.53 M47.98,52.4 L45.97,49.53 M63.87,57.41 L67.16,56.21 M44.13,57.41 L40.84,56.21" />
 </vector>

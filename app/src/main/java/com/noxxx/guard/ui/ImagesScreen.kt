@@ -13,6 +13,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import com.noxxx.guard.BuildConfig
 import com.noxxx.guard.policy.Sensitivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,7 +26,8 @@ fun LazyListScope.imagesScreen(actions: PolicyActions) {
         SectionCard(
             "On-screen detection",
             "About every 1.5 s while the screen is on, NoXXX checks a shrunken copy of the screen with an on-device model. " +
-                "Nothing is saved or sent anywhere. If explicit content is detected, the screen is covered and the app is sent back.",
+                "Nothing is sent anywhere. If explicit content is detected, the screen is covered and the app is sent back." +
+                if (BuildConfig.DEBUG) " Dev build: flagged images are kept privately on this phone for tuning." else "",
             icon = Icons.Filled.ImageSearch,
         ) {
             if (!supported) StatusLine(false, "Needs Android 11 or newer")
@@ -63,8 +65,9 @@ fun LazyListScope.imagesScreen(actions: PolicyActions) {
     item {
         val p = guardState().policy
         SectionCard(
-            "Skip these apps",
-            "Skipping saves battery in apps like games or maps. Adding an app here needs an unlock.",
+            "Apps without image detection",
+            "Checked apps are never scanned or blocked for images. Use it for apps that set off false alarms, like " +
+                "chat or work tools, or to save battery in games and maps. Adding an app needs an unlock.",
             icon = Icons.Filled.SportsEsports,
         ) {
             AppPicker(p.imageScanExemptApps, checkingLoosens = true) { pkg, on ->

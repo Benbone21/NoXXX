@@ -15,3 +15,5 @@
 keystore.properties
 # Personal Claude Code settings
 .claude/settings.local.json
+# Detection images pulled from a dev build (scripts/pull-detections.sh)
+detections-pulled/

@@ -7,6 +7,8 @@ import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.annotation.RequiresApi
+import com.noxxx.guard.BuildConfig
+import com.noxxx.guard.data.DetectionArchive
 import com.noxxx.guard.policy.Sensitivity
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -17,6 +19,8 @@ import kotlin.math.roundToInt
 /**
  * [top] is the tile with the highest explicit score (the one that flagged, if any), at [tile] of
  * [tiles]. [secureCheck] says how a blank/secure screen was detected, for the diagnostics log.
+ * [topPixels] (dev builds only, and only for high-scoring tiles) is that tile exactly as the model
+ * saw it, ARGB at [side] x [side], for [DetectionArchive].
  */
 data class ScanResult(
     val flagged: Boolean,
@@ -25,6 +29,8 @@ data class ScanResult(
     val tile: Int = 0,
     val tiles: Int = 0,
     val secureCheck: String? = null,
+    val topPixels: IntArray? = null,
+    val side: Int = 0,
 )
 
 /**
@@ -132,16 +138,24 @@ class ScreenScanner(private val service: AccessibilityService) {
                 val origins = tileOrigins(w, h, side)
                 var top: Scores? = null
                 var topTile = 0
+                var topPixels: IntArray? = null
                 for ((i, origin) in origins.withIndex()) {
                     small.getPixels(pixels, 0, side, origin.first, origin.second, side, side)
                     val s = model.classify(pixels)
+                    // [pixels] is reused for the next tile, so a dev build keeps its own copy of any
+                    // tile worth archiving. Release builds compile this away.
+                    val keep = BuildConfig.DEBUG && DetectionArchive.worthKeeping(s, sensitivity)
                     if (top == null || s.explicit > top.explicit) {
                         top = s
                         topTile = i
+                        topPixels = if (keep) pixels.copyOf() else null
                     }
-                    if (s.isFlagged(sensitivity)) return ScanResult(true, false, s, i + 1, origins.size)
+                    if (s.isFlagged(sensitivity)) {
+                        val kept = if (!keep) null else if (top === s) topPixels else pixels.copyOf()
+                        return ScanResult(true, false, s, i + 1, origins.size, topPixels = kept, side = side)
+                    }
                 }
-                return ScanResult(false, false, top, topTile + 1, origins.size)
+                return ScanResult(false, false, top, topTile + 1, origins.size, topPixels = topPixels, side = side)
             } finally {
                 if (small !== software) small.recycle()
             }

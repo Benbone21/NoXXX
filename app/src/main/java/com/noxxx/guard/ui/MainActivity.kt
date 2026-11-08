@@ -80,6 +80,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.noxxx.guard.NoXXXApp
+import com.noxxx.guard.admin.GuardAdminReceiver
 import com.noxxx.guard.monitor.TamperGuard
 import com.noxxx.guard.policy.ChangeResult
 import com.noxxx.guard.policy.Policy
@@ -97,8 +98,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Back in the app: any grace period for system setup screens is over.
-        TamperGuard.endGrace()
+        // Back in the app: any grace period for system setup screens is over. Except the device-admin
+        // one, kept until admin is actually on, in case MainActivity is resumed while the floating
+        // activation dialog is still up. That grace only ever lets the activation screen through and
+        // ends on its own after a few minutes.
+        TamperGuard.endGrace(keep = TamperGuard.Grace.DEVICE_ADMIN.takeUnless { GuardAdminReceiver.isActive(this) })
     }
 
     /** Opens a system setup screen for NoXXX without TamperGuard closing it. */
@@ -182,19 +186,17 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
     if (pickPalette) PaletteDialog { pickPalette = false }
     val scrollBehavior = key(tab) { TopAppBarDefaults.exitUntilCollapsedScrollBehavior() }
 
-    val night = LocalPalette.current == Palette.NIGHT
     val colors = MaterialTheme.colorScheme
-    if (night) NightBackdrop(Modifier.fillMaxSize())
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = if (night) Color.Transparent else colors.background,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             LargeTopAppBar(
                 title = { Text(if (tab == Tab.TODAY) greeting() else tab.title) },
                 actions = {
                     IconButton(onClick = { pickPalette = true }) {
-                        Icon(Icons.Outlined.Palette, contentDescription = "Colors")
+                        Icon(Icons.Outlined.Palette, contentDescription = "Theme")
                     }
                     if (tab == Tab.PROTECTION && !guardState().committed) {
                         IconButton(onClick = openGuide) {
@@ -204,13 +206,13 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
                 },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = if (night) Color.Transparent else colors.background,
-                    scrolledContainerColor = if (night) Color(0xE60B0F26) else colors.background,
+                    containerColor = colors.background,
+                    scrolledContainerColor = colors.background,
                 ),
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = if (night) Color(0xF00D0C22) else colors.background, tonalElevation = 0.dp) {
+            NavigationBar(containerColor = colors.background, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         selected = tab == t,
@@ -292,23 +294,23 @@ private fun greeting(): String = when (java.time.LocalTime.now().hour) {
 @Composable
 private fun PaletteDialog(onDismiss: () -> Unit) {
     val ctx = LocalContext.current
-    val current = Appearance.palette.collectAsStateWithLifecycle().value
+    val current = Appearance.mode.collectAsStateWithLifecycle().value
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Colors") },
+        title = { Text("Theme") },
         text = {
             Column {
-                Palette.entries.forEach { p ->
+                ThemeMode.entries.forEach { m ->
                     Row(
-                        Modifier.fillMaxWidth().selectable(selected = p == current, role = Role.RadioButton) {
-                            Appearance.set(ctx, p)
+                        Modifier.fillMaxWidth().selectable(selected = m == current, role = Role.RadioButton) {
+                            Appearance.set(ctx, m)
                         }.padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = p == current, onClick = null)
+                        RadioButton(selected = m == current, onClick = null)
                         Column(Modifier.padding(start = 12.dp)) {
-                            Text(p.label, style = MaterialTheme.typography.bodyLarge)
-                            Text(p.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(m.label, style = MaterialTheme.typography.bodyLarge)
+                            Text(m.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

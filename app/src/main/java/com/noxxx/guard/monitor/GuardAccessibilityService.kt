@@ -16,9 +16,11 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.view.inputmethod.InputMethodManager
+import com.noxxx.guard.BuildConfig
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.R
 import com.noxxx.guard.data.BlockKind
+import com.noxxx.guard.data.DetectionArchive
 import com.noxxx.guard.data.DiagEntry
 import com.noxxx.guard.policy.Policy
 import com.noxxx.guard.policy.Sensitivity
@@ -50,6 +52,11 @@ class GuardAccessibilityService : AccessibilityService() {
     private var lastWindowClass: String? = null
     /** Latest screen/pane title announced by each package (e.g. "Accessibility", "NoXXX"). */
     private val titleByPackage = HashMap<String, String>()
+    /**
+     * Latest window class announced by each package. Grace is judged per package, so a keyboard or
+     * system UI window popping up can't replace the class of the Settings screen underneath.
+     */
+    private val classByPackage = HashMap<String, String>()
     /** Windows that pop over the real foreground app (keyboard, system UI). */
     private var transient: Set<String> = emptySet()
     /** Apps never screen-scanned (launcher, keyboard, system UI, NoXXX). */
@@ -73,6 +80,8 @@ class GuardAccessibilityService : AccessibilityService() {
     private var shieldBacks = 0
     private var shieldReset = false
     private var shieldLogged = false
+    /** Identity (rule, window, title) of the last block written to the diagnostics log. */
+    private var lastLoggedBlock: String? = null
     private var lastShieldActionAt = 0L
 
     override fun onServiceConnected() {
@@ -98,6 +107,7 @@ class GuardAccessibilityService : AccessibilityService() {
         }
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             lastWindowClass = event.className?.toString()
+            lastWindowClass?.let { classByPackage[pkg] = it } ?: classByPackage.remove(pkg)
             // Always replace, so a stale "NoXXX" title can't outlive the screen it came from.
             val title = event.text?.joinToString(" ")?.takeIf { it.isNotBlank() }
             if (title != null) titleByPackage[pkg] = title else titleByPackage.remove(pkg)
@@ -283,24 +293,36 @@ class GuardAccessibilityService : AccessibilityService() {
             "flaggedScansInARow" to "$flaggedFrames", "scansNeeded" to "$needed",
         )
         when {
-            wantImage && flaggedFrames >= needed && top != null -> block(BlockKind.IMAGE, label(pkg), pkg,
-                "Explicit %.2f (%s), %d scans in a row".format(top.explicit, s.name.lowercase(), flaggedFrames), imageData)
+            wantImage && flaggedFrames >= needed && top != null -> {
+                block(BlockKind.IMAGE, label(pkg), pkg,
+                    "Explicit %.2f (%s), %d scans in a row".format(top.explicit, s.name.lowercase(), flaggedFrames), imageData)
+                saveDetection("BLOCK", pkg, s, top, r)
+            }
             wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg), pkg,
                 r.secureCheck ?: "Secure screen", mapOf("method" to r.secureCheck.orEmpty(), "blankScansInARow" to "$blankFrames"))
-            wantImage && top != null && (r.flagged || top.explicit >= NEAR_MISS_EXPLICIT) -> logNearMiss(pkg, s, top, imageData)
+            wantImage && top != null && (r.flagged || top.explicit >= NEAR_MISS_EXPLICIT) ->
+                if (logNearMiss(pkg, s, top, imageData)) saveDetection("NEAR_MISS", pkg, s, top, r)
         }
+    }
+
+    /** Dev builds: keeps the tile the model judged, matching the diagnostics line just written. */
+    private fun saveDetection(type: String, pkg: String, s: Sensitivity, top: Scores, r: ScanResult) {
+        if (!BuildConfig.DEBUG || !DetectionArchive.worthKeeping(top, s)) return
+        runCatching { DetectionArchive.save(this, type, pkg, top, s, "${r.tile} of ${r.tiles}", r.topPixels, r.side) }
     }
 
     private val lastNearMiss = HashMap<String, Long>()
 
     /** Images that scored high but didn't block, at most one per app per minute: shows how close normal content gets. */
-    private fun logNearMiss(pkg: String, s: Sensitivity, top: Scores, data: Map<String, String>) {
+    /** Returns whether it was logged. */
+    private fun logNearMiss(pkg: String, s: Sensitivity, top: Scores, data: Map<String, String>): Boolean {
         val now = SystemClock.uptimeMillis()
-        if (now - (lastNearMiss[pkg] ?: -NEAR_MISS_SPACING_MS) < NEAR_MISS_SPACING_MS) return
+        if (now - (lastNearMiss[pkg] ?: -NEAR_MISS_SPACING_MS) < NEAR_MISS_SPACING_MS) return false
         lastNearMiss[pkg] = now
         val why = if (top.isFlagged(s)) "Flagged, but not on enough scans in a row" else "Below the ${s.name.lowercase()} threshold"
         app.diagnostics.write(DiagEntry(System.currentTimeMillis(), "NEAR_MISS", BlockKind.IMAGE.name, pkg, label(pkg),
             "$why (explicit %.2f)".format(top.explicit), data))
+        return true
     }
 
     /** Which list a matched word came from, for logs. */
@@ -367,7 +389,7 @@ class GuardAccessibilityService : AccessibilityService() {
         if (!tamperLocked()) return
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_CLICKED ->
-                if (clickNamesApp(event) && !TamperGuard.allowsWindow(lastWindowClass)) raiseShield(awaitNextScreen = true)
+                if (clickNamesApp(event) && !graceCoversClick(pkg)) raiseShield(awaitNextScreen = true)
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 awaitingNextScreen = false
                 // Check synchronously: show shield immediately on sensitive screen to close the tap gap.
@@ -410,14 +432,32 @@ class GuardAccessibilityService : AccessibilityService() {
         handler.post(tamperCheck)
     }
 
+    /**
+     * A tap naming NoXXX normally raises the shield before the screen it opens is drawn. Not while
+     * a setup grace covers the screen in front: on the device-admin activation screen that would
+     * swallow the tap on Activate.
+     */
+    private fun graceCoversClick(pkg: String): Boolean {
+        if (TamperGuard.allowsWindow(classByPackage[pkg], titleByPackage[pkg])) return true
+        val root = frontRoot() ?: return false
+        val rootPkg = root.packageName?.toString() ?: return false
+        return TamperGuard.isAdminActivationInFront(root, titleByPackage[rootPkg], classByPackage[rootPkg], appLabel)
+    }
+
     private fun isLockedScreen(root: AccessibilityNodeInfo, pkg: String): Boolean {
-        if (pkg !in TamperGuard.GUARDED_PACKAGES || !tamperLocked() || TamperGuard.allowsWindow(lastWindowClass)) return false
+        val title = titleByPackage[pkg]
+        val windowClass = classByPackage[pkg]
+        if (pkg !in TamperGuard.GUARDED_PACKAGES || !tamperLocked() || TamperGuard.allowsWindow(windowClass, title)) return false
         val p = policy
         val dnsGrace = TamperGuard.activeGrace() == TamperGuard.Grace.PRIVATE_DNS
         val host = p.privateDnsHost.takeIf { p.requirePrivateDns && !dnsGrace }
-        lockReason = TamperGuard.sensitiveReason(root, titleByPackage[pkg], appLabel, host)
+        lockReason = TamperGuard.sensitiveReason(root, title, appLabel, host, windowClass)
+        if (lockReason != null) lockRootClass = root.className?.toString()
         return lockReason != null
     }
+
+    /** Class of the root node of the last locked screen, for the diagnostics log. */
+    private var lockRootClass: String? = null
 
     /** The tamper rule behind the last locked screen, for the block log. */
     private var lockReason: TamperRules.Reason? = null
@@ -435,7 +475,11 @@ class GuardAccessibilityService : AccessibilityService() {
         val root = frontRoot()
         val pkg = root?.packageName?.toString()
         if (root != null && pkg != null && isLockedScreen(root, pkg)) return onLockedScreen(pkg)
-        if (!shield.isShowing) return
+        if (!shield.isShowing) {
+            // The shield can fail to show; still start the next block afresh (Back count, logging).
+            resetBlockState()
+            return
+        }
         val waiting = awaitingNextScreen && SystemClock.uptimeMillis() - shieldSince < PREARM_MS
         if (!waiting) {
             if (clearPending) return lowerShield()
@@ -452,11 +496,22 @@ class GuardAccessibilityService : AccessibilityService() {
         raiseShield(awaitNextScreen = false)
         awaitingNextScreen = false
         clearPending = false
+        val rule = lockReason
+        val data = mapOf(
+            "rule" to rule?.name.orEmpty(), "window" to classByPackage[pkg].orEmpty(), "title" to titleByPackage[pkg].orEmpty(),
+            "lastWindow" to lastWindowClass.orEmpty(), "rootClass" to lockRootClass.orEmpty(),
+            "grace" to TamperGuard.activeGrace()?.name.orEmpty(),
+        )
         if (!shieldLogged) {
             shieldLogged = true
-            val rule = lockReason
-            app.blockLog.add(BlockKind.SETTINGS, label(pkg), rule?.description ?: "Protected settings screen", pkg,
-                mapOf("rule" to rule?.name.orEmpty(), "window" to lastWindowClass.orEmpty(), "title" to titleByPackage[pkg].orEmpty()))
+            app.blockLog.add(BlockKind.SETTINGS, label(pkg), rule?.description ?: "Protected settings screen", pkg, data)
+        }
+        // Recent blocks collapses repeats; the diagnostics log gets every distinct screen closed.
+        val identity = "$pkg|${data["rule"]}|${data["window"]}|${data["title"]}|${data["grace"]}"
+        if (identity != lastLoggedBlock) {
+            lastLoggedBlock = identity
+            app.diagnostics.write(DiagEntry(System.currentTimeMillis(), "TAMPER", BlockKind.SETTINGS.name, pkg, label(pkg),
+                rule?.description ?: "Protected settings screen", data + ("backsSoFar" to "$shieldBacks")))
         }
         val now = SystemClock.uptimeMillis()
         if (now - lastShieldActionAt >= SHIELD_ACTION_SPACING_MS) {
@@ -491,17 +546,24 @@ class GuardAccessibilityService : AccessibilityService() {
     private fun lowerShield() {
         handler.removeCallbacks(shieldPoll)
         shield.hide()
+        resetBlockState()
+    }
+
+    private fun resetBlockState() {
         awaitingNextScreen = false
         clearPending = false
         shieldBacks = 0
         shieldReset = false
         shieldLogged = false
+        lastLoggedBlock = null
         lastShieldActionAt = 0
     }
 
     private val shieldPoll = Runnable {
         // Safety valve: never leave a cover stuck on screen if something unexpected keeps it up.
         if (shield.isShowing && SystemClock.uptimeMillis() - shieldSince > SHIELD_MAX_MS) {
+            app.diagnostics.write(DiagEntry(System.currentTimeMillis(), "TAMPER", BlockKind.SETTINGS.name, foreground, null,
+                "Shield up too long; going Home", mapOf("lastWindow" to lastWindowClass.orEmpty(), "rule" to lockReason?.name.orEmpty())))
             lowerShield()
             performGlobalAction(GLOBAL_ACTION_HOME)
         } else {
