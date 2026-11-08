@@ -4,7 +4,7 @@
 <ul>
 <li><b>Websites:</b> Android's Private DNS is pointed at a family filter (Cloudflare for Families by default), which filters every app. Supported browsers' address bars are also checked against a bundled list of about 77,000 adult domains, plus your own sites.</li>
 <li><b>Searches:</b> a built-in list of blocked words and phrases is checked against address bars and app search boxes. Matching is whole-word only, so normal words that contain a blocked word aren't caught.</li>
-<li><b>Images:</b> on Android 11+, an on-device MobileNetV2 model checks a shrunken copy of the screen about every 1.5 seconds and covers explicit content.</li>
+<li><b>Images:</b> on Android 11+, the on-device NudeNet detector checks a shrunken copy of the screen about every 1.5 seconds and covers exposed explicit body parts.</li>
 <li><b>Apps:</b> block any app, plus browsers NoXXX can't monitor and private/incognito tabs. Essential apps (phone, texts, clock, app stores, password managers, authenticators, maps) can never be blocked by mistake, and you can add your own, such as your bank.</li>
 </ul>
 

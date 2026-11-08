@@ -20,15 +20,14 @@ data class DetectionEntry(
     val pkg: String,
     val scores: Map<String, String>,
     val sensitivity: String,
-    val tile: String,
     val file: String,
 )
 
 /**
- * Dev builds only: keeps the exact tile the image model judged for blocks and near misses, so false
- * alarms can be pulled off the phone (scripts/pull-detections.sh) and used to tune detection. Lives in
- * private app storage (files/detections), is never shown in the app, never exported or shared, and
- * never reaches the gallery. Release builds compile every call to nothing.
+ * Dev builds only: keeps the exact image the detector judged (the whole screen, letterboxed) for blocks
+ * and near misses, so false alarms can be pulled off the phone (scripts/pull-detections.sh) and used to
+ * tune detection. Lives in private app storage (files/detections), is never shown in the app, never
+ * exported or shared, and never reaches the gallery. Release builds compile every call to nothing.
  */
 object DetectionArchive {
     private const val TAG = "DetectionArchive"
@@ -38,32 +37,32 @@ object DetectionArchive {
     private const val MAX_IMAGES = 300
     private const val MAX_BYTES = 60L * 1024 * 1024
 
-    /** Below the block line, scans scoring at least this explicit are still kept. */
-    private const val KEEP_EXPLICIT = 0.5f
+    /** Below the block line, scans with an exposed explicit part at least this confident are still kept. */
+    private const val KEEP_EXPLICIT = 0.30f
 
     private val json = Json { encodeDefaults = false }
     private val writer by lazy { Executors.newSingleThreadExecutor() }
 
-    /** Whether a tile's scores make it worth saving: flagged, or close to the threshold. */
+    /** Whether a scan is worth saving: flagged, or close to the threshold. */
     fun worthKeeping(s: Scores, sensitivity: Sensitivity) = s.isFlagged(sensitivity) || s.explicit >= KEEP_EXPLICIT
 
     /**
      * Queues [pixels] (ARGB, [side] x [side]) to be written as a JPEG. Returns at once; encoding,
      * writing and pruning happen on a background thread, and a failure there never reaches the caller.
      */
-    fun save(context: Context, type: String, pkg: String, top: Scores, sensitivity: Sensitivity, tile: String, pixels: IntArray?, side: Int) {
+    fun save(context: Context, type: String, pkg: String, top: Scores, sensitivity: Sensitivity, pixels: IntArray?, side: Int) {
         if (!BuildConfig.DEBUG || pixels == null || side <= 0 || pixels.size != side * side) return
         val time = System.currentTimeMillis()
         val dir = File(context.filesDir, DIR)
         runCatching {
             writer.execute {
-                runCatching { write(dir, time, type, pkg, top, sensitivity, tile, pixels, side) }
+                runCatching { write(dir, time, type, pkg, top, sensitivity, pixels, side) }
                     .onFailure { Log.w(TAG, "saving detection failed", it) }
             }
         }
     }
 
-    private fun write(dir: File, time: Long, type: String, pkg: String, top: Scores, sensitivity: Sensitivity, tile: String, pixels: IntArray, side: Int) {
+    private fun write(dir: File, time: Long, type: String, pkg: String, top: Scores, sensitivity: Sensitivity, pixels: IntArray, side: Int) {
         dir.mkdirs()
         val name = DetectionFiles.fileName(time, type, pkg, top.explicit)
         val full = Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888)
@@ -74,7 +73,7 @@ object DetectionArchive {
         } finally {
             bmp.recycle()
         }
-        val entry = DetectionEntry(time, type, pkg, top.toLog(), sensitivity.name, tile, name)
+        val entry = DetectionEntry(time, type, pkg, top.toLog(), sensitivity.name, name)
         val index = File(dir, INDEX)
         index.appendText(json.encodeToString(DetectionEntry.serializer(), entry) + "\n")
         prune(dir, index)

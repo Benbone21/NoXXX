@@ -25,8 +25,9 @@ fun LazyListScope.imagesScreen(actions: PolicyActions) {
         val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
         SectionCard(
             "On-screen detection",
-            "About every 1.5 s while the screen is on, NoXXX checks a shrunken copy of the screen with an on-device model. " +
-                "Nothing is sent anywhere. If explicit content is detected, the screen is covered and the app is sent back." +
+            "About every 1.5 s while the screen is on, NoXXX checks a shrunken copy of the screen with an on-device model " +
+                "that looks for exposed private parts. Faces, clothed people and bare chests on men don't count. Nothing " +
+                "is sent anywhere. If explicit content is detected, the screen is covered and the app is sent back." +
                 if (BuildConfig.DEBUG) " Dev build: flagged images are kept privately on this phone for tuning." else "",
             icon = Icons.Filled.ImageSearch,
         ) {
@@ -48,9 +49,10 @@ fun LazyListScope.imagesScreen(actions: PolicyActions) {
             }
             Hint(
                 when (p.sensitivity) {
-                    Sensitivity.RELAXED -> "Only clear-cut explicit images. Fewest false alarms."
-                    Sensitivity.BALANCED -> "Explicit images. Recommended."
-                    Sensitivity.STRICT -> "Also catches borderline images that look partly explicit. Expect occasional false alarms."
+                    Sensitivity.RELAXED -> "Only clearly exposed genitals or anus. Fewest false alarms."
+                    Sensitivity.BALANCED -> "Exposed genitals, anus, breasts or buttocks. Recommended."
+                    Sensitivity.STRICT -> "Catches less certain nudity too, and genitals or buttocks in underwear or swimwear. " +
+                        "Expect occasional false alarms."
                 }
             )
             ToggleRow(

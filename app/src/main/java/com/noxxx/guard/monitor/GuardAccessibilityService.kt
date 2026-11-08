@@ -289,13 +289,15 @@ class GuardAccessibilityService : AccessibilityService() {
         val needed = if (s == Sensitivity.RELAXED) 3 else 2
         val top = r.top
         val imageData = top?.toLog().orEmpty() + mapOf(
-            "sensitivity" to s.name, "rule" to (top?.ruleText(s) ?: ""), "tile" to "${r.tile} of ${r.tiles}",
+            "sensitivity" to s.name, "rule" to (top?.ruleText(s) ?: ""),
             "flaggedScansInARow" to "$flaggedFrames", "scansNeeded" to "$needed",
         )
         when {
             wantImage && flaggedFrames >= needed && top != null -> {
+                val hit = top.trigger(s)
                 block(BlockKind.IMAGE, label(pkg), pkg,
-                    "Explicit %.2f (%s), %d scans in a row".format(top.explicit, s.name.lowercase(), flaggedFrames), imageData)
+                    "%s %.2f (%s), %d scans in a row".format(hit?.part?.name ?: "Explicit", hit?.score ?: top.explicit,
+                        s.name.lowercase(), flaggedFrames), imageData)
                 saveDetection("BLOCK", pkg, s, top, r)
             }
             wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg), pkg,
@@ -308,10 +310,10 @@ class GuardAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** Dev builds: keeps the tile the model judged, with its scores in detections/index.jsonl. */
+    /** Dev builds: keeps the screen as the model saw it, with its detections in detections/index.jsonl. */
     private fun saveDetection(type: String, pkg: String, s: Sensitivity, top: Scores, r: ScanResult) {
         if (!BuildConfig.DEBUG || !DetectionArchive.worthKeeping(top, s)) return
-        runCatching { DetectionArchive.save(this, type, pkg, top, s, "${r.tile} of ${r.tiles}", r.topPixels, r.side) }
+        runCatching { DetectionArchive.save(this, type, pkg, top, s, r.topPixels, r.side) }
     }
 
     private val lastNearMiss = HashMap<String, Long>()
@@ -588,8 +590,8 @@ class GuardAccessibilityService : AccessibilityService() {
         private const val SCAN_INTERVAL_MS = 1_500L
         private const val WINDOW_CHECK_INTERVAL_MS = 400L
         private const val DNS_RECHECK_MS = 3_000L
-        /** Image scans scoring at least this explicit are logged as near misses even when not flagged. */
-        private const val NEAR_MISS_EXPLICIT = 0.35f
+        /** Scans with an exposed explicit part at least this confident are logged as near misses even when not flagged. */
+        private const val NEAR_MISS_EXPLICIT = 0.30f
         private const val NEAR_MISS_SPACING_MS = 60_000L
         private const val SHIELD_POLL_MS = 120L
         /** Roughly one Back animation, so a second Back isn't sent before the first has landed. */

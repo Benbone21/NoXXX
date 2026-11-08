@@ -17,8 +17,9 @@ Things reviewers will likely ask about:
 
 - **NonFreeNet anti-feature:** the app contacts google.com and cloudflare.com for the time and relies on
   a third-party DNS filter. The draft already declares this.
-- **Image model:** `app/src/main/assets/nsfw_mobilenet_v2.tflite` is a binary file. It comes from
-  [GantMan/nsfw_model](https://github.com/GantMan/nsfw_model) (MIT), MobileNetV2 224.
+- **Image model:** `app/src/main/assets/nudenet_320n_fp16.tflite` is a binary file. It is the
+  [NudeNet](https://github.com/notAI-tech/NudeNet) 320n detector (AGPL-3.0), converted from the official
+  `v3.4-weights/320n.onnx` release asset; the README's Credits give the hashes and conversion commands.
 - **Accessibility service and device admin:** used only as described in the app description.
 
 For each new version: bump `versionCode` and `versionName` in `app/build.gradle.kts`, add

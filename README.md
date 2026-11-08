@@ -54,7 +54,7 @@ All of this stays on your phone, and goals and the journal aren't locked by the 
 |---|---|
 | **Websites** | Android's Private DNS is pointed at a family filter (Cloudflare for Families by default), which filters every app. CleanBrowsing Family also forces SafeSearch, but its servers can fail to load normal sites such as Canvas and Okta logins. On top of that, supported browsers' address bars are checked against a bundled list of 76,798 domains, plus your own sites and words. |
 | **Searches** | A built-in list of blocked words and phrases (plus your own) is checked against browser address bars and search boxes in other apps. Matching is whole-word only, so a blocked word inside a longer, normal word never triggers. A blocked search is cleared. |
-| **Images** | On Android 11+, a shrunken copy of the screen is classified on-device about every 1.5 s by a MobileNetV2 model. If it detects explicit content, the screen is covered and the app is sent back. Nothing is saved or uploaded. |
+| **Images** | On Android 11+, a shrunken copy of the whole screen is checked on-device about every 1.5 s by the NudeNet detector, which finds exposed body parts. Only exposed genitals, anus, female breasts and buttocks count (Strict also counts covered genitals and buttocks); faces, clothed people and men's bare chests never do. If it finds them on two scans in a row (three on Relaxed), the screen is covered and the app is sent back. Nothing is saved or uploaded. |
 | **Apps** | Pick any apps to block. Browsers NoXXX can't monitor, and private/incognito tabs, can also be blocked. |
 | **Two-tier unlock** | Once protection starts, Home, stats and history stay open, and adding protection always works. **Settings unlock** (1 h to 7 d cool-off, 24 h default) opens a 15-minute window to edit NoXXX settings; TamperShield stays active so system settings are still guarded. **Full unlock** (7-day cool-off) opens a 15-minute window where TamperShield is off, allowing device admin deactivation and uninstall. An unlock request expires if not opened within 15 minutes of being ready. |
 | **Lockdown** | Freezes every setting and pauses unlock requests for 1–90 days. It can be extended but not shortened. |
@@ -238,13 +238,13 @@ app/src/main/java/com/noxxx/guard/
   policy/    Policy, cool-off/lockdown engine, tamper-resistant clock, password hashing (pure Kotlin, unit-tested)
   data/      GuardStore (persisted state), BlockLog, NetworkTime
   web/       DomainBlocklist (hashed, ~640 KB RAM), UrlChecker, PrivateDns status/enforcement
-  vision/    ImageClassifier (LiteRT), ScreenScanner (accessibility screenshots, tiling)
+  vision/    NudeDetector (LiteRT), Detections (YOLOv8 decoding, NMS, sensitivity rule), ScreenScanner (accessibility screenshots)
   monitor/   GuardAccessibilityService, BlockOverlay, BrowserRegistry, TamperGuard
   admin/     Device admin receiver        boot/  Boot receiver
   ui/        Compose UI: Home, Websites, Apps, Images, Cool-off
 app/src/main/assets/
   blocklist.txt              domain list (refresh with scripts/update-blocklist.sh)
-  nsfw_mobilenet_v2.tflite   image model
+  nudenet_320n_fp16.tflite   image model (NudeNet 320n, see Credits)
 ```
 
 ## Credits
@@ -258,7 +258,14 @@ app/src/main/assets/
   Copyright (c) 2025 Quitter)
 - Heading font: [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant), SIL Open Font License
   (`licenses/Cormorant-Garamond-OFL.txt`)
-- Image model: [GantMan/nsfw_model](https://github.com/GantMan/nsfw_model) MobileNetV2 224 (MIT)
+- Image model: [NudeNet](https://github.com/notAI-tech/NudeNet) 320n exposed-body-part detector
+  (Ultralytics YOLOv8n), GNU AGPL-3.0 (`licenses/NudeNet-LICENSE.txt`). Source:
+  `https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx`
+  (SHA-256 `c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f`), converted to float16
+  TFLite with `onnxsim 320n.onnx 320n_static.onnx --overwrite-input-shape images:1,3,320,320` then
+  `onnx2tf -i 320n_static.onnx -tb tf_converter` (onnxsim 0.6.5, onnx2tf 2.6.9, TensorFlow 2.21.0). The
+  shipped `nudenet_320n_fp16.tflite` has SHA-256
+  `b709083047bdf4b238aaaed24b5ec2a1e9e25647158e98c73e551969aaf39eff`
 - DNS filtering: [CleanBrowsing](https://cleanbrowsing.org) and [Cloudflare for Families](https://one.one.one.one/family/)
 
 ## License
@@ -271,7 +278,8 @@ of the License, or (at your option) any later version. It is distributed in the 
 useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
 A PARTICULAR PURPOSE. See the [license](LICENSE) for details.
 
-The bundled domain list, word list and image model keep their own MIT licenses (see Credits).
+The bundled domain list and word list keep their own MIT licenses, and the image model its GNU AGPL-3.0
+license, which GPLv3 section 13 allows combining with (see Credits).
 
 ## Keywords
 

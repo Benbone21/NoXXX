@@ -13,29 +13,26 @@ import com.noxxx.guard.policy.Sensitivity
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 /**
- * [top] is the tile with the highest explicit score (the one that flagged, if any), at [tile] of
- * [tiles]. [secureCheck] says how a blank/secure screen was detected, for the diagnostics log.
- * [topPixels] (dev builds only, and only for high-scoring tiles) is that tile exactly as the model
- * saw it, ARGB at [side] x [side], for [DetectionArchive].
+ * [top] is what the detector found on the screen (whether or not it flagged). [secureCheck] says how a
+ * blank/secure screen was detected, for the diagnostics log. [topPixels] (dev builds only, and only for
+ * scans worth keeping) is the screen exactly as the model saw it, ARGB at [side] x [side], for
+ * [DetectionArchive].
  */
 data class ScanResult(
     val flagged: Boolean,
     val blank: Boolean,
     val top: Scores? = null,
-    val tile: Int = 0,
-    val tiles: Int = 0,
     val secureCheck: String? = null,
     val topPixels: IntArray? = null,
     val side: Int = 0,
 )
 
 /**
- * Takes a screenshot through the accessibility service (Android 11+), shrinks it, and classifies
- * overlapping square tiles so tall phone screens aren't distorted. Everything stays on-device.
+ * Takes a screenshot through the accessibility service (Android 11+), shrinks the whole screen into the
+ * detector's square input (letterboxed, so nothing is distorted or cut in half) and runs it once.
+ * Everything stays on-device.
  */
 @RequiresApi(Build.VERSION_CODES.R)
 class ScreenScanner(private val service: AccessibilityService) {
@@ -48,7 +45,7 @@ class ScreenScanner(private val service: AccessibilityService) {
      */
     private val callbacks = Executor { task -> if (!executor.isShutdown) runCatching { executor.execute(task) } }
     private val busy = AtomicBoolean(false)
-    private var classifier: ImageClassifier? = null
+    private var detector: NudeDetector? = null
 
     fun scan(sensitivity: Sensitivity, onResult: (ScanResult) -> Unit) {
         if (!busy.compareAndSet(false, true)) return
@@ -119,49 +116,48 @@ class ScreenScanner(private val service: AccessibilityService) {
         } finally {
             buffer.close()
         }
-        val model = classifier ?: ImageClassifier(service).also {
-            classifier = it
-            Log.i(TAG, "image model loaded (${it.inputWidth}x${it.inputHeight})")
+        val model = detector ?: NudeDetector(service).also {
+            detector = it
+            Log.i(TAG, "image model loaded (${it.side}x${it.side})")
         }
-        val side = model.inputWidth
+        val side = model.side
         try {
-            // Scale so the short edge matches the model input, then walk tiles along the long edge.
-            val scale = side.toFloat() / minOf(software.width, software.height)
-            val w = maxOf(side, (software.width * scale).roundToInt())
-            val h = maxOf(side, (software.height * scale).roundToInt())
-            val small = Bitmap.createScaledBitmap(software, w, h, true)
+            // One pass over the whole screen: a detector finds small parts anywhere in its input, so
+            // tiles would only cost more inferences and split bodies across tile edges.
+            val (w, h) = Letterbox.fit(software.width, software.height, side)
+            val small = shrink(software, w, h)
             try {
                 if (guessBlank && isBlank(small)) {
                     return ScanResult(flagged = false, blank = true, secureCheck = "Screen was almost all black (pre-Android 14 check)")
                 }
+                // Top-left on black, like NudeNet's own preprocessing; the rest of the square stays 0 (black).
                 val pixels = IntArray(side * side)
-                val origins = tileOrigins(w, h, side)
-                var top: Scores? = null
-                var topTile = 0
-                var topPixels: IntArray? = null
-                for ((i, origin) in origins.withIndex()) {
-                    small.getPixels(pixels, 0, side, origin.first, origin.second, side, side)
-                    val s = model.classify(pixels)
-                    // [pixels] is reused for the next tile, so a dev build keeps its own copy of any
-                    // tile worth archiving. Release builds compile this away.
-                    val keep = BuildConfig.DEBUG && DetectionArchive.worthKeeping(s, sensitivity)
-                    if (top == null || s.explicit > top.explicit) {
-                        top = s
-                        topTile = i
-                        topPixels = if (keep) pixels.copyOf() else null
-                    }
-                    if (s.isFlagged(sensitivity)) {
-                        val kept = if (!keep) null else if (top === s) topPixels else pixels.copyOf()
-                        return ScanResult(true, false, s, i + 1, origins.size, topPixels = kept, side = side)
-                    }
-                }
-                return ScanResult(false, false, top, topTile + 1, origins.size, topPixels = topPixels, side = side)
+                small.getPixels(pixels, 0, side, 0, 0, w, h)
+                val s = model.detect(pixels)
+                // Only dev builds hand the pixels on; release builds compile this away.
+                val keep = BuildConfig.DEBUG && DetectionArchive.worthKeeping(s, sensitivity)
+                return ScanResult(s.isFlagged(sensitivity), false, s, topPixels = if (keep) pixels else null, side = side)
             } finally {
                 if (small !== software) small.recycle()
             }
         } finally {
             software.recycle()
         }
+    }
+
+    /**
+     * Halves the screenshot until it's within 2x of the target, then scales the rest of the way. A single
+     * bilinear step from a 2400 px screen down to 320 skips most pixels and turns fine detail into noise.
+     */
+    private fun shrink(src: Bitmap, w: Int, h: Int): Bitmap {
+        var cur = src
+        while (cur.width > w * 2 && cur.height > h * 2) {
+            val next = Bitmap.createScaledBitmap(cur, cur.width / 2, cur.height / 2, true)
+            if (cur !== src) cur.recycle()
+            cur = next
+        }
+        if (cur.width == w && cur.height == h) return cur
+        return Bitmap.createScaledBitmap(cur, w, h, true).also { if (cur !== src) cur.recycle() }
     }
 
     /** Secure windows (e.g. private tabs) come back solid black. Ignores the top/bottom bars. */
@@ -177,27 +173,19 @@ class ScreenScanner(private val service: AccessibilityService) {
                 val px = bmp.getPixel(x, y)
                 if (((px shr 16) and 0xFF) < 10 && ((px shr 8) and 0xFF) < 10 && (px and 0xFF) < 10) dark++
                 total++
-                x += 8
+                x += 4
             }
-            y += 8
+            y += 4
         }
         return total > 0 && dark >= total * 0.98
     }
 
     fun close() {
-        executor.execute { classifier?.close(); classifier = null }
+        executor.execute { detector?.close(); detector = null }
         executor.shutdown()
     }
 
     private companion object {
         const val TAG = "ScreenScanner"
-
-        fun tileOrigins(w: Int, h: Int, side: Int): List<Pair<Int, Int>> {
-            val vertical = h >= w
-            val long = if (vertical) h else w
-            val count = ceil(long.toFloat() / side).toInt().coerceAtLeast(1)
-            val step = if (count == 1) 0 else (long - side) / (count - 1)
-            return (0 until count).map { i -> if (vertical) 0 to i * step else i * step to 0 }
-        }
     }
 }

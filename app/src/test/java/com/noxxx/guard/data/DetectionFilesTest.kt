@@ -2,6 +2,9 @@ package com.noxxx.guard.data
 
 import com.noxxx.guard.data.DetectionFiles.Stored
 import com.noxxx.guard.policy.Sensitivity
+import com.noxxx.guard.vision.BodyPart
+import com.noxxx.guard.vision.Box
+import com.noxxx.guard.vision.Detection
 import com.noxxx.guard.vision.Scores
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,10 +53,12 @@ class DetectionFilesTest {
     }
 
     @Test fun keepsFlaggedAndCloseCallsOnly() {
-        fun s(explicit: Float, suggestive: Float = 0f) = Scores(floatArrayOf(0f, 0f, 0f, explicit, suggestive))
-        assertTrue(DetectionArchive.worthKeeping(s(0.55f), Sensitivity.RELAXED))
-        assertFalse(DetectionArchive.worthKeeping(s(0.40f), Sensitivity.BALANCED))
-        // Strict flags explicit + suggestive below 0.5 explicit; that's kept too.
-        assertTrue(DetectionArchive.worthKeeping(s(0.40f, 0.50f), Sensitivity.STRICT))
+        fun s(part: BodyPart, score: Float) = Scores(listOf(Detection(part, score, Box(0f, 0f, 10f, 10f))))
+        assertTrue(DetectionArchive.worthKeeping(s(BodyPart.FEMALE_BREAST_EXPOSED, 0.35f), Sensitivity.RELAXED))
+        assertFalse(DetectionArchive.worthKeeping(s(BodyPart.FEMALE_BREAST_EXPOSED, 0.25f), Sensitivity.BALANCED))
+        // Faces never count, however confident.
+        assertFalse(DetectionArchive.worthKeeping(s(BodyPart.FACE_FEMALE, 0.99f), Sensitivity.STRICT))
+        // Strict flags covered buttocks, which aren't "explicit"; that's kept too.
+        assertTrue(DetectionArchive.worthKeeping(s(BodyPart.BUTTOCKS_COVERED, 0.70f), Sensitivity.STRICT))
     }
 }
