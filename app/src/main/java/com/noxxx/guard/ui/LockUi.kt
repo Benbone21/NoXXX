@@ -56,7 +56,7 @@ private fun phaseOf(s: GuardState): LockPhase? {
 
 /**
  * Shows whether settings are locked and what to do about it. [full] adds the explanation and the
- * partner option (used on the Lock tab); the compact form sits at the top of other tabs.
+ * partner option (used in Protection → Lock); the compact form sits in Protection → Overview.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

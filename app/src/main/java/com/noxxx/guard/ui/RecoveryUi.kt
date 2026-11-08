@@ -102,7 +102,8 @@ fun PassageView(passage: Passage, onOpen: (String) -> Unit) {
 @Composable
 fun DailyScriptureCard() {
     val ctx = LocalContext.current
-    val passage = remember(LocalDate.now()) { Scriptures.forDay(LocalDate.now()) } ?: return
+    val list = Scriptures.passages.collectAsStateWithLifecycle().value
+    val passage = Scriptures.forDay(LocalDate.now(), list) ?: return
     SectionCard("Today's scripture", icon = Icons.Filled.AutoStories) {
         PassageView(passage) { openLink(ctx, it) }
     }
@@ -132,6 +133,36 @@ fun StruggleCard() {
         }
     }
     if (open) StruggleDialog { open = false }
+}
+
+/** The streak at a glance, for Today: days clean and progress to the next milestone. */
+@Composable
+fun StreakHero() {
+    val state = guardState()
+    val days = ((System.currentTimeMillis() - state.streakStartWallMs) / 86_400_000L).coerceAtLeast(0)
+    val next = Milestones.next(days)
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("$days", style = MaterialTheme.typography.displayLarge)
+                Text(if (days == 1L) "day clean" else "days clean", style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 12.dp))
+            }
+            Milestones.reached(days)?.let { Text(it.title, style = MaterialTheme.typography.titleMedium) }
+            if (next != null) {
+                LinearProgressIndicator(progress = { Milestones.progress(days) }, modifier = Modifier.fillMaxWidth())
+                val left = next.days - days
+                Text("$left ${if (left == 1L) "day" else "days"} to ${next.title.lowercase()}", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
 }
 
 /** Streak milestones, adapted from Quitter: the next one to aim for, and the whole timeline. */

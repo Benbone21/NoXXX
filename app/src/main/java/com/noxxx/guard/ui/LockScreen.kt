@@ -50,7 +50,7 @@ fun LazyListScope.lockScreen(actions: PolicyActions) {
         if (guardState().committed) {
             LockStatusCard(actions, full = true)
         } else {
-            SectionCard("Setup mode", "Settings lock once you start protection on the Home tab.", icon = Icons.Filled.LockOpen) {}
+            SectionCard("Setup mode", "Settings lock once you start protection (Protection → Overview).", icon = Icons.Filled.LockOpen) {}
         }
     }
 

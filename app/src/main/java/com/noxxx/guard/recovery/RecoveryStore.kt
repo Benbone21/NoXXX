@@ -28,6 +28,10 @@ data class RecoveryState(
     val goals: List<Goal> = DEFAULT_GOALS,
     val done: Map<String, Set<Long>> = emptyMap(),
     val journal: List<JournalEntry> = emptyList(),
+    /** Setup interview answers, or null before the interview. */
+    val answers: Answers? = null,
+    /** Lockdown chosen during setup, started when protection starts. */
+    val plannedLockdownDays: Int = 0,
 ) {
     fun isDone(goalId: String, day: LocalDate) = day.toEpochDay() in done[goalId].orEmpty()
 

@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import java.io.File
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,18 +60,88 @@ import java.util.Date
 @Composable
 fun guardState(): GuardState = NoXXXApp.instance.store.state.collectAsStateWithLifecycle().value
 
-fun LazyListScope.homeScreen(actions: PolicyActions, refresh: Int, openGuide: () -> Unit) {
-    item { HeroCard(refresh, openGuide) }
-    item { TamperAlertCard() }
+/** Today: the day's recovery focus. Protection details live on their own tab. */
+fun LazyListScope.todayScreen(refresh: Int, openProtection: () -> Unit) {
+    item { AttentionBanner(refresh, openProtection) }
+    item { StreakHero() }
+    item { GoalsCard() }
     item { DailyScriptureCard() }
     item { StruggleCard() }
+}
+
+/** Progress: the streak timeline, journal and block stats. */
+fun LazyListScope.progressScreen() {
     item { StreakCard() }
-    item { GoalsCard() }
     item { JournalCard() }
-    item { LockStatusCard(actions) }
     statsSection()
-    item { SetupSummary(refresh, openGuide) }
-    item { RecentBlocks() }
+}
+
+enum class ProtectionSection(val label: String) {
+    OVERVIEW("Overview"), WEB("Websites"), APPS("Apps"), IMAGES("Images"), LOCK("Lock")
+}
+
+/** Protection: everything about blocking, split into sections so no one screen gets long. */
+fun LazyListScope.protectionScreen(
+    actions: PolicyActions,
+    refresh: Int,
+    openGuide: () -> Unit,
+    section: ProtectionSection,
+    onSection: (ProtectionSection) -> Unit,
+) {
+    item { SectionSwitcher(section, onSection) }
+    when (section) {
+        ProtectionSection.OVERVIEW -> {
+            item { HeroCard(refresh, openGuide) }
+            item { TamperAlertCard() }
+            item { LockStatusCard(actions) }
+            item { SetupSummary(refresh, openGuide) }
+            item { RecentBlocks() }
+        }
+        ProtectionSection.WEB -> webScreen(actions, refresh)
+        ProtectionSection.APPS -> appsScreen(actions)
+        ProtectionSection.IMAGES -> imagesScreen(actions)
+        ProtectionSection.LOCK -> lockScreen(actions)
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SectionSwitcher(section: ProtectionSection, onSection: (ProtectionSection) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ProtectionSection.entries.forEach { s ->
+            FilterChip(selected = s == section, onClick = { onSection(s) }, label = { Text(s.label) })
+        }
+    }
+}
+
+/** Shown on Today only when something needs doing, so the tab stays calm otherwise. */
+@Composable
+private fun AttentionBanner(refresh: Int, openProtection: () -> Unit) {
+    val state = guardState()
+    val status = rememberSetupStatus(refresh)
+    val p = state.policy
+    val healthy = status.accessibility && (!p.requirePrivateDns || status.dns.filtering || !status.dns.online)
+    val message = when {
+        !state.committed -> "Protection hasn't started yet."
+        !healthy -> "Protection needs attention: something is switched off."
+        state.tamperEvents.isNotEmpty() -> "The guard was switched off at some point. See what happened."
+        else -> return
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = if (!state.committed) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Row(Modifier.padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(message, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = openProtection) { Text("Open") }
+        }
+    }
 }
 
 @Composable
@@ -190,7 +264,7 @@ private fun HeroCard(refresh: Int, openGuide: () -> Unit) {
                 Text("Settings will lock. Home and your stats stay open, and you can always add protection. To loosen " +
                     "anything or uninstall, you'll request an unlock and wait ${formatMinutes(p.coolOffMinutes)}.")
             },
-            confirmButton = { TextButton(onClick = { NoXXXApp.instance.store.commit(); confirm = false }) { Text("Start") } },
+            confirmButton = { TextButton(onClick = { startProtection(); confirm = false }) { Text("Start") } },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Not yet") } },
         )
     }

@@ -18,6 +18,10 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Checklist
@@ -88,11 +92,9 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class Tab(val label: String, val title: String, val selectedIcon: ImageVector, val icon: ImageVector) {
-    HOME("Home", "NoXXX", Icons.Filled.Shield, Icons.Outlined.Shield),
-    WEB("Websites", "Websites", Icons.Filled.Language, Icons.Outlined.Language),
-    APPS("Apps", "Apps", Icons.Filled.Apps, Icons.Outlined.Apps),
-    IMAGES("Images", "Image detection", Icons.Filled.Image, Icons.Outlined.Image),
-    LOCK("Lock", "Lock & cool-off", Icons.Filled.Lock, Icons.Outlined.Lock),
+    TODAY("Today", "Today", Icons.Filled.Today, Icons.Outlined.Today),
+    PROGRESS("Progress", "Progress", Icons.Filled.Insights, Icons.Outlined.Insights),
+    PROTECTION("Protection", "Protection", Icons.Filled.Shield, Icons.Outlined.Shield),
 }
 
 /** Saves a policy change and reports what happened. */
@@ -157,7 +159,8 @@ private fun Root() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int, openGuide: () -> Unit) {
-    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
+    var section by rememberSaveable { mutableStateOf(ProtectionSection.OVERVIEW) }
     val scrollBehavior = key(tab) { TopAppBarDefaults.exitUntilCollapsedScrollBehavior() }
 
     Scaffold(
@@ -167,7 +170,7 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
             LargeTopAppBar(
                 title = { Text(tab.title) },
                 actions = {
-                    if (tab == Tab.HOME && !guardState().committed) {
+                    if (tab == Tab.PROTECTION && !guardState().committed) {
                         IconButton(onClick = openGuide) {
                             Icon(Icons.Outlined.Checklist, contentDescription = "Setup guide")
                         }
@@ -189,7 +192,7 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
             }
         },
     ) { padding ->
-        key(tab) {
+        key(tab, section) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
@@ -200,11 +203,9 @@ private fun MainTabs(actions: PolicyActions, snackbar: SnackbarHostState, refres
                 ),
             ) {
                 when (tab) {
-                    Tab.HOME -> homeScreen(actions, refresh, openGuide)
-                    Tab.WEB -> webScreen(actions, refresh)
-                    Tab.APPS -> appsScreen(actions)
-                    Tab.IMAGES -> imagesScreen(actions)
-                    Tab.LOCK -> lockScreen(actions)
+                    Tab.TODAY -> todayScreen(refresh) { tab = Tab.PROTECTION; section = ProtectionSection.OVERVIEW }
+                    Tab.PROGRESS -> progressScreen()
+                    Tab.PROTECTION -> protectionScreen(actions, refresh, openGuide, section) { section = it }
                 }
             }
         }

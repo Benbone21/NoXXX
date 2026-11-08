@@ -1,6 +1,9 @@
 package com.noxxx.guard.recovery
 
 import android.content.Context
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
@@ -15,13 +18,15 @@ data class Passage(val ref: String, val text: String, val url: String, val strug
 object Scriptures {
     const val ASSET = "scriptures.json"
 
-    @Volatile
-    var all: List<Passage> = emptyList()
-        private set
+    private val _passages = MutableStateFlow<List<Passage>>(emptyList())
+
+    /** Loaded in the background at startup; screens collect this so they update once it's ready. */
+    val passages: StateFlow<List<Passage>> = _passages.asStateFlow()
+    val all: List<Passage> get() = _passages.value
 
     fun load(context: Context) {
         if (all.isNotEmpty()) return
-        all = runCatching {
+        _passages.value = runCatching {
             context.assets.open(ASSET).bufferedReader().use { Json.decodeFromString<List<Passage>>(it.readText()) }
         }.getOrDefault(emptyList())
     }

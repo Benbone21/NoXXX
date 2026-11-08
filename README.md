@@ -12,14 +12,14 @@ or their mental health, and wants a blocker that still holds when an urge hits.
 **[Download the latest APK](https://github.com/Benbone21/NoXXX/releases/latest)** · Android 9 or newer
 
 <p>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home tab with protection on">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home with protection on">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="Choosing protections in the setup guide">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Lock and cool-off tab">
 </p>
 
 ## Recovery, not just blocking
 
-NoXXX is built for Latter-day Saints working to quit, with recovery tools on the Home tab:
+NoXXX is built for Latter-day Saints working to quit, organized in three tabs: **Today** (streak, goals, scripture, help), **Progress** (milestones, journal, stats) and **Protection** (all the blocking settings). Recovery tools:
 
 - **Today's scripture:** a new verse each day from the Bible, Book of Mormon, Doctrine and Covenants
   and Pearl of Great Price, with a button to read it in context in Gospel Library.
@@ -117,34 +117,36 @@ Image detection needs Android 11 (API 30) or newer.
 
 ## Phone setup
 
-The first time NoXXX opens, a **setup guide** walks through everything one step at a time:
+The first time NoXXX opens, a **setup guide** starts with a few private questions (how often, what
+sets it off, support and faith habits), suggests goals, a lockdown and settings from the answers, then
+walks through everything one step at a time:
 choosing your protections, each permission, apps to block, your cool-off and an optional partner
 password. Until you tap **Start protection**, the app is in setup mode: every change applies instantly,
-nothing is locked, and you can reopen the guide from the checklist icon on the Home tab. After that the
-guide is gone; anything that gets switched off can be fixed from the Setup card on Home.
+nothing is locked, and you can reopen the guide from the checklist icon on the Protection tab. After that the
+guide is gone; anything that gets switched off can be fixed from Protection → Overview.
 
 The guide covers:
 
 1. **Accessibility service**: turn on *NoXXX*.
    On Android 13+, a sideloaded app's switch may be greyed out. Open *App info → ⋮ → Allow restricted settings*, then try again.
 2. **Private DNS**: *Settings → Network & internet → Private DNS → Private DNS provider hostname* →
-   `family.cloudflare-dns.com` (or another provider listed on the Websites tab).
+   `family.cloudflare-dns.com` (or another provider listed under Protection → Websites).
 3. **Auto-repair (optional)**: from a computer, run
    `adb shell pm grant com.noxxx.guard android.permission.WRITE_SECURE_SETTINGS`.
    NoXXX can then switch Private DNS back on by itself if it gets changed.
 4. **Uninstall protection**: turn on device admin.
 5. **Battery**: let NoXXX ignore battery optimization so it isn't stopped in the background.
-6. Set up the Websites, Apps, Images and Lock tabs, then tap **Start protection**.
+6. Set up Websites, Apps, Images and Lock under Protection, then tap **Start protection**.
 
 ### Using your own VPN
 
 Private DNS and a VPN usually coexist, but some VPN apps send DNS through their own servers instead.
-With your VPN connected, check the Home tab:
+With your VPN connected, check Protection → Overview:
 
 - **"Private DNS: family.cloudflare-dns.com" shown**: you're covered.
 - **Not filtering**: either set your VPN app's custom DNS to a family filter (Cloudflare for Families
   `1.1.1.3` / `1.0.0.3`, or CleanBrowsing Family `185.228.168.168` / `185.228.169.168`), or turn off
-  *Require Private DNS* on the Websites tab. Address-bar checking and image detection keep working
+  *Require Private DNS* under Protection → Websites. Address-bar checking and image detection keep working
   either way. Do this during setup mode so it doesn't have to wait out the cool-off.
 
 ### Custom filter: allow sites the family filters block
@@ -155,7 +157,7 @@ still blocking porn, use your own filter:
 1. Make a free profile at [NextDNS](https://nextdns.io) (or [Control D](https://controld.com)) and turn on
    porn blocking (NextDNS: *Parental Control → Porn*).
 2. Add the sites you need to the profile's **Allowlist**.
-3. In NoXXX, choose **Custom filter** on the Websites tab and paste the profile's DNS-over-TLS hostname
+3. In NoXXX, choose **Custom filter** under Protection → Websites and paste the profile's DNS-over-TLS hostname
    (like `abc123.dns.nextdns.io`). Also add the sites under **Allowed sites**, since NoXXX's own list may
    block them too.
 
@@ -184,11 +186,11 @@ To rebuild the list: `python3 scripts/update-keywords.py --fetch --exclude-corpu
 - **Always allowed:** viewing Home and stats, blocking more sites/apps/words, turning protection on,
   raising sensitivity, lengthening the cool-off, starting a lockdown.
 - **Needs an unlock:** anything that loosens protection. Those controls show a lock icon.
-- **Settings unlock:** tap *Request unlock* (Home, any settings tab, or the Lock tab). After the
+- **Settings unlock:** tap *Request unlock* (any Protection section). After the
   cool-off it becomes *ready* for 15 minutes; open it to get a **15-minute window** where NoXXX
   settings can be changed. TamperShield stays active, so system settings screens for NoXXX are still
   guarded. Then it locks again.
-- **Full unlock:** tap *Request full unlock* (Lock tab). After a 7-day cool-off it becomes ready for
+- **Full unlock:** tap *Request full unlock* (Protection → Lock). After a 7-day cool-off it becomes ready for
   15 minutes; open it to get a **15-minute window** where TamperShield is off, allowing you to
   deactivate device admin, disable the accessibility service, and uninstall. Use this only when you
   want to fully remove protection.
@@ -201,7 +203,7 @@ The timers resist tricks:
 
 ## Removing NoXXX
 
-1. Request a **full unlock** (Lock tab) and wait out the 7-day cool-off.
+1. Request a **full unlock** (Protection → Lock) and wait out the 7-day cool-off.
 2. Open the full unlock. For the next 15 minutes, TamperShield is off.
 3. *Settings → Security → Device admin apps* → turn off NoXXX.
 4. Uninstall.
@@ -212,7 +214,7 @@ The timers resist tricks:
   be needed to close those gaps.
 - **Force-stopping NoXXX turns its Accessibility service off** (Android does this for every app).
   That's why tamper protection closes App info and Samsung's Device care. If it ever happens,
-  turn the service back on from the Home tab.
+  turn the service back on from Protection → Overview.
 - Tamper protection recognises dangerous screens by their title and English button labels (Force stop,
   Uninstall, Clear storage, Deactivate, Stop, Turn off). On a phone set to another language, App info may
   not be recognised; NoXXX's own Accessibility page and the uninstall prompt still are.

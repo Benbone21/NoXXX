@@ -68,7 +68,7 @@ import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.Sensitivity
 import com.noxxx.guard.policy.formatMinutes
 
-private enum class Page { WELCOME, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, COOL_OFF, FINISH }
+private enum class Page { WELCOME, ABOUT, TRIGGERS, FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, COOL_OFF, FINISH }
 
 private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
 
@@ -84,7 +84,10 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
     val index = pages.indexOf(current).coerceAtLeast(0)
     val status = rememberSetupStatus(refresh)
 
+    val installed = rememberInstalledApps().map { it.pkg }.toSet()
     fun go(delta: Int) {
+        // Leaving the interview forward: fill in goals, lockdown and protection from the answers.
+        if (current == Page.FAITH && delta > 0) applyInterview(actions, installed)
         current = pages[(index + delta).coerceIn(0, pages.lastIndex)]
     }
     BackHandler(enabled = index > 0) { go(-1) }
@@ -154,6 +157,11 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
             ) {
                 when (page) {
                     Page.WELCOME -> WelcomePage()
+                    Page.ABOUT -> AboutYouPage()
+                    Page.TRIGGERS -> TriggersPage()
+                    Page.FAITH -> FaithPage()
+                    Page.GOALS -> GoalsPage()
+                    Page.LOCKDOWN -> LockdownPlanPage()
                     Page.PROTECTIONS -> ProtectionsPage(actions, status)
                     Page.ACCESSIBILITY -> PageHeader(Icons.Filled.Accessibility, "Turn on the guard",
                         "NoXXX uses Android's Accessibility service to read browser addresses, close blocked apps, check the " +
@@ -176,7 +184,7 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                     }
                     Page.APPS -> PageHeader(Icons.Filled.Apps, "Block apps",
                         "Optional. Pick apps that are a problem for you; they'll close as soon as they open. You can change this " +
-                            "later on the Apps tab.") {
+                            "later under Protection → Apps.") {
                         val p = guardState().policy
                         AppPicker(p.blockedApps) { pkg, on ->
                             actions.change { if (on) it.copy(blockedApps = it.blockedApps + pkg) else it.copy(blockedApps = it.blockedApps - pkg) }
@@ -192,7 +200,7 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
 }
 
 @Composable
-private fun PageHeader(icon: ImageVector, title: String, body: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun PageHeader(icon: ImageVector, title: String, body: String, content: @Composable ColumnScope.() -> Unit) {
     IconBadge(icon, size = 72.dp)
     Text(title, style = MaterialTheme.typography.headlineMedium)
     Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -202,7 +210,7 @@ private fun PageHeader(icon: ImageVector, title: String, body: String, content: 
 @Composable
 private fun WelcomePage() {
     PageHeader(Icons.Filled.Shield, "Welcome to NoXXX",
-        "Let's set up your protection. It takes about two minutes, and everything runs on your phone.") {
+        "A few private questions first, then NoXXX suggests goals and settings that fit you. It takes about five minutes, and everything stays on your phone.") {
         Feature(Icons.Filled.Language, "Websites", "Family-filter DNS plus a list of nearly 77,000 blocked sites")
         Feature(Icons.Filled.Image, "Images", "On-device detection covers explicit content in any app")
         Feature(Icons.Filled.Apps, "Apps", "Block the apps you choose")
@@ -315,7 +323,7 @@ private fun FinishPage(status: SetupStatus, onDone: () -> Unit) {
 
     PageHeader(Icons.Filled.VerifiedUser, if (ready) "You're all set" else "Almost there",
         if (ready) "Start protection now, or look around first. Nothing locks until you start."
-        else "A couple of required steps are still open. You can finish them later from the Home screen.") {
+        else "A couple of required steps are still open. You can finish them later under Protection → Overview.") {
         StatusLine(status.accessibility, "Guard service")
         if (p.requirePrivateDns) StatusLine(status.dns.filtering, "Private DNS family filter")
         StatusLine(status.admin, "Uninstall protection")
@@ -335,12 +343,14 @@ private fun FinishPage(status: SetupStatus, onDone: () -> Unit) {
             icon = { Icon(Icons.Filled.Shield, contentDescription = null) },
             title = { Text("Start protection?") },
             text = {
+                val lockdown = recoveryState().plannedLockdownDays
                 Text("Settings will lock. Home and your stats stay open, and you can always add protection. To loosen " +
-                    "anything or uninstall, you'll request an unlock and wait ${formatMinutes(p.coolOffMinutes)}.")
+                    "anything or uninstall, you'll request an unlock and wait ${formatMinutes(p.coolOffMinutes)}." +
+                    if (lockdown > 0) " Your $lockdown-day lockdown starts now: nothing can be loosened until it ends." else "")
             },
             confirmButton = {
                 TextButton(onClick = {
-                    store.commit()
+                    startProtection()
                     store.finishOnboarding()
                     confirm = false
                     onDone()
