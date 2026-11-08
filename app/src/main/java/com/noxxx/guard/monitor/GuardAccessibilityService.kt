@@ -300,12 +300,15 @@ class GuardAccessibilityService : AccessibilityService() {
             }
             wantPrivate && blankFrames >= 3 -> block(BlockKind.PRIVATE_BROWSING, label(pkg), pkg,
                 r.secureCheck ?: "Secure screen", mapOf("method" to r.secureCheck.orEmpty(), "blankScansInARow" to "$blankFrames"))
-            wantImage && top != null && (r.flagged || top.explicit >= NEAR_MISS_EXPLICIT) ->
-                if (logNearMiss(pkg, s, top, imageData)) saveDetection("NEAR_MISS", pkg, s, top, r)
+            wantImage && top != null && (r.flagged || top.explicit >= NEAR_MISS_EXPLICIT) -> {
+                logNearMiss(pkg, s, top, imageData)
+                // Saved on every near miss, not just the logged one a minute, for more tuning examples.
+                saveDetection("NEAR_MISS", pkg, s, top, r)
+            }
         }
     }
 
-    /** Dev builds: keeps the tile the model judged, matching the diagnostics line just written. */
+    /** Dev builds: keeps the tile the model judged, with its scores in detections/index.jsonl. */
     private fun saveDetection(type: String, pkg: String, s: Sensitivity, top: Scores, r: ScanResult) {
         if (!BuildConfig.DEBUG || !DetectionArchive.worthKeeping(top, s)) return
         runCatching { DetectionArchive.save(this, type, pkg, top, s, "${r.tile} of ${r.tiles}", r.topPixels, r.side) }
@@ -314,15 +317,13 @@ class GuardAccessibilityService : AccessibilityService() {
     private val lastNearMiss = HashMap<String, Long>()
 
     /** Images that scored high but didn't block, at most one per app per minute: shows how close normal content gets. */
-    /** Returns whether it was logged. */
-    private fun logNearMiss(pkg: String, s: Sensitivity, top: Scores, data: Map<String, String>): Boolean {
+    private fun logNearMiss(pkg: String, s: Sensitivity, top: Scores, data: Map<String, String>) {
         val now = SystemClock.uptimeMillis()
-        if (now - (lastNearMiss[pkg] ?: -NEAR_MISS_SPACING_MS) < NEAR_MISS_SPACING_MS) return false
+        if (now - (lastNearMiss[pkg] ?: -NEAR_MISS_SPACING_MS) < NEAR_MISS_SPACING_MS) return
         lastNearMiss[pkg] = now
         val why = if (top.isFlagged(s)) "Flagged, but not on enough scans in a row" else "Below the ${s.name.lowercase()} threshold"
         app.diagnostics.write(DiagEntry(System.currentTimeMillis(), "NEAR_MISS", BlockKind.IMAGE.name, pkg, label(pkg),
             "$why (explicit %.2f)".format(top.explicit), data))
-        return true
     }
 
     /** Which list a matched word came from, for logs. */
