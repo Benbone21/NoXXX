@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dev builds use their own app ID; this keeps the two apart on the phone. -->
+    <string name="app_name">NoXXX Dev</string>
+</resources>

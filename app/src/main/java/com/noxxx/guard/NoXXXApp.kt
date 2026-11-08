@@ -8,6 +8,8 @@ import com.noxxx.guard.web.DnsCanary
 import com.noxxx.guard.data.DiagEntry
 import com.noxxx.guard.data.BlockLog
 import com.noxxx.guard.data.DiagnosticsLog
+import com.noxxx.guard.recovery.RecoveryStore
+import com.noxxx.guard.recovery.Scriptures
 import com.noxxx.guard.data.GuardStore
 import com.noxxx.guard.data.NetworkTime
 import com.noxxx.guard.monitor.GuardAccessibilityService
@@ -28,6 +30,7 @@ class NoXXXApp : Application() {
         private set
     lateinit var blockLog: BlockLog
     lateinit var diagnostics: DiagnosticsLog
+    lateinit var recovery: RecoveryStore
         private set
     val blocklist = DomainBlocklist()
     val keywords = KeywordIndex()
@@ -41,10 +44,12 @@ class NoXXXApp : Application() {
         store = GuardStore(this)
         diagnostics = DiagnosticsLog(this)
         blockLog = BlockLog(this, diagnostics)
+        recovery = RecoveryStore(this)
         TamperNotifier.ensureChannel(this)
         appScope.launch(Dispatchers.IO) {
             blocklist.loadBundled(this@NoXXXApp)
             keywords.loadBundled(this@NoXXXApp)
+            Scriptures.load(this@NoXXXApp)
         }
         startClock()
     }

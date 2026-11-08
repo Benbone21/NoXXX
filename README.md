@@ -17,6 +17,23 @@ or their mental health, and wants a blocker that still holds when an urge hits.
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="200" alt="Lock and cool-off tab">
 </p>
 
+## Recovery, not just blocking
+
+NoXXX is built for Latter-day Saints working to quit, with recovery tools on the Home tab:
+
+- **Today's scripture:** a new verse each day from the Bible, Book of Mormon, Doctrine and Covenants
+  and Pearl of Great Price, with a button to read it in context in Gospel Library.
+- **Scripture when something is blocked:** the block screen shows a verse for hard moments.
+- **Streak milestones:** a timeline from day 1 to five years, so you can see what's ahead.
+- **Daily goals:** morning and evening prayer, scripture study and reaching out to someone to start;
+  edit them or add your own, each with its own streak.
+- **"Having a hard moment?":** a verse, a guided minute of breathing, things to do instead, and the
+  twelve key principles of the Church's Addiction Recovery Program with a link to find meetings.
+- **Journal:** mood, urge strength, triggers and a note. After a slip it asks what happened, so you
+  can see it coming next time.
+
+All of this stays on your phone, and goals and the journal aren't locked by the cool-off.
+
 ## Why NoXXX
 
 - **Free and open source:** no subscription, no ads, no tracking. Licensed under GPL-3.0.
@@ -81,6 +98,19 @@ NOXXX_KEY_PASSWORD=...
 ```
 
 Without them, `assembleRelease` produces an unsigned APK (this is what F-Droid builds and signs itself).
+
+### Dev builds
+
+`assembleDebug` builds **NoXXX Dev** (`com.noxxx.guard.debug`), which installs next to a normal copy.
+Every lock and protection works as usual on the phone, but dev builds are marked test-only, so they
+install with `adb install -t` and can be removed from a computer without the in-app wait:
+
+```
+adb install -r -t app/build/outputs/apk/debug/app-debug.apk
+scripts/dev-uninstall.sh
+```
+
+Release builds are never test-only.
 
 Toolchain: AGP 8.13.2, Gradle 8.13, Kotlin 2.1.0, compileSdk/targetSdk 35, minSdk 28 (Android 9).
 Image detection needs Android 11 (API 30) or newer.
@@ -219,6 +249,11 @@ app/src/main/assets/
 
 - Domain list: [StevenBlack/hosts](https://github.com/StevenBlack/hosts) adult-content extension (MIT)
 - Word list: [dsojevic/profanity-list](https://github.com/dsojevic/profanity-list) (MIT), filtered as described above; [google-10000-english](https://github.com/first20hours/google-10000-english) is used at build time only
+- Scripture text: [bcbooks/scriptures-json](https://github.com/bcbooks/scriptures-json), the text of the
+  standard works without the Church's copyrighted footnotes or introductions (rebuild with
+  `scripts/build-scriptures.py`)
+- Streak milestones adapted from [Quitter](https://github.com/brandonp2412/Quitter) (MIT License,
+  Copyright (c) 2025 Quitter)
 - Image model: [GantMan/nsfw_model](https://github.com/GantMan/nsfw_model) MobileNetV2 224 (MIT)
 - DNS filtering: [CleanBrowsing](https://cleanbrowsing.org) and [Cloudflare for Families](https://one.one.one.one/family/)
 

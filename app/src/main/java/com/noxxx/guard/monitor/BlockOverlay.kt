@@ -16,6 +16,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.noxxx.guard.data.BlockKind
 import com.noxxx.guard.ui.BlockScreen
+import com.noxxx.guard.ui.openLink
 import com.noxxx.guard.ui.MainActivity
 import com.noxxx.guard.ui.NoXXXTheme
 
@@ -41,6 +42,7 @@ class BlockOverlay(private val service: AccessibilityService) {
                         detail = detail,
                         streakDays = streakDays,
                         onOpenApp = if (offerApp) ({ dismiss(); openApp() }) else null,
+                        onOpenScripture = { url -> dismiss(); openLink(service, url) },
                         onClose = { dismiss(); onClosed() },
                     )
                 }

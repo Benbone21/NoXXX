@@ -40,6 +40,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Dev builds install next to the protected copy (as "NoXXX Dev"), so testing never means
+            // waiting out your own cool-off to uninstall. Build with -Pnoxxx.mainId to update the
+            // protected copy itself.
+            if (!providers.gradleProperty("noxxx.mainId").isPresent) applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

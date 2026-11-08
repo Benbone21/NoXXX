@@ -59,6 +59,11 @@ fun guardState(): GuardState = NoXXXApp.instance.store.state.collectAsStateWithL
 fun LazyListScope.homeScreen(actions: PolicyActions, refresh: Int, openGuide: () -> Unit) {
     item { HeroCard(refresh, openGuide) }
     item { TamperAlertCard() }
+    item { DailyScriptureCard() }
+    item { StruggleCard() }
+    item { StreakCard() }
+    item { GoalsCard() }
+    item { JournalCard() }
     item { LockStatusCard(actions) }
     statsSection()
     item { SetupSummary(refresh, openGuide) }

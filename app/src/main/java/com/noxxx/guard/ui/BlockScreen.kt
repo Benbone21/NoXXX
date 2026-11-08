@@ -1,5 +1,6 @@
 package com.noxxx.guard.ui
 
+import com.noxxx.guard.recovery.Scriptures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,13 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.noxxx.guard.data.BlockKind
 import kotlinx.coroutines.delay
 
-private val ENCOURAGEMENT = listOf(
-    "Urges rise and fall like waves. This one will pass too.",
-    "Stand up, drink some water, and step away for five minutes.",
-    "You set this up for a reason. Future you is grateful.",
-    "Text a friend, go for a walk, or do ten push-ups.",
-    "One moment of discomfort beats hours of regret.",
-)
+private const val FALLBACK = "Urges rise and fall like waves. This one will pass too."
 
 /** Full-screen cover shown by the guard service when something is blocked. */
 @Composable
@@ -45,6 +40,7 @@ fun BlockScreen(
     detail: String,
     streakDays: Long,
     onOpenApp: (() -> Unit)?,
+    onOpenScripture: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     var remaining by remember { mutableIntStateOf(if (kind == BlockKind.SETTINGS) 2 else 5) }
@@ -54,7 +50,7 @@ fun BlockScreen(
             remaining--
         }
     }
-    val encouragement = remember { ENCOURAGEMENT.random() }
+    val passage = remember { Scriptures.forStruggle() }
     val (title, body) = blockCopy(kind, detail)
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -81,8 +77,10 @@ fun BlockScreen(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(encouragement, Modifier.padding(20.dp).fillMaxWidth(), textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyLarge)
+                Column(Modifier.padding(20.dp).fillMaxWidth()) {
+                    if (passage != null) PassageView(passage, onOpenScripture)
+                    else Text(FALLBACK, Modifier.fillMaxWidth(), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+                }
             }
             if (onOpenApp != null) {
                 FilledTonalButton(onClick = onOpenApp, modifier = Modifier.fillMaxWidth()) { Text("Open NoXXX") }

@@ -55,7 +55,6 @@ import kotlin.math.min
 private const val DAY_MS = 86_400_000L
 
 fun LazyListScope.statsSection() {
-    item { StreakCard() }
     item { TotalsRow() }
     item { WeekCard() }
     item { ByTypeCard() }
@@ -66,9 +65,10 @@ private fun days(ms: Long) = (ms / DAY_MS).coerceAtLeast(0)
 private fun dayWord(n: Long) = if (n == 1L) "day" else "days"
 
 @Composable
-private fun StreakCard() {
+fun StreakCard() {
     val state = guardState()
     var confirm by remember { mutableStateOf(false) }
+    var journal by remember { mutableStateOf(false) }
     val current = System.currentTimeMillis() - state.streakStartWallMs
     val currentDays = days(current)
     val bestDays = days(maxOf(state.bestStreakMs, current))
@@ -81,6 +81,7 @@ private fun StreakCard() {
         }
         Text("Best: $bestDays ${dayWord(bestDays)}", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        MilestoneSection(currentDays)
         TextButton(onClick = { confirm = true }) { Text("I slipped, reset streak") }
     }
 
@@ -89,10 +90,13 @@ private fun StreakCard() {
             onDismissRequest = { confirm = false },
             title = { Text("Reset your streak?") },
             text = { Text("A slip doesn't erase your progress, and your best streak is kept. Note what triggered it, then start again.") },
-            confirmButton = { TextButton(onClick = { NoXXXApp.instance.store.resetStreak(); confirm = false }) { Text("Reset") } },
+            confirmButton = {
+                TextButton(onClick = { NoXXXApp.instance.store.resetStreak(); confirm = false; journal = true }) { Text("Reset") }
+            },
             dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
         )
     }
+    if (journal) JournalDialog(slipped = true) { journal = false }
 }
 
 @Composable

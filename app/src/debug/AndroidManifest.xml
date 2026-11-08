@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dev builds are test-only. Every protection works as usual on the phone, but from a computer adb can
+  remove the device admin (Android only allows that for test-only apps) and uninstall:
+  scripts/dev-uninstall.sh. Release builds are never test-only.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application android:testOnly="true" tools:ignore="HardcodedDebugMode" />
+</manifest>
