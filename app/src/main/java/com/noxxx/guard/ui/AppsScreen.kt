@@ -3,6 +3,7 @@ package com.noxxx.guard.ui
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AppBlocking
+import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.noxxx.guard.monitor.BrowserRegistry
 import com.noxxx.guard.monitor.EssentialApps
+import com.noxxx.guard.monitor.IgnoredApps
 
 fun LazyListScope.appsScreen(actions: PolicyActions) {
     item { LockStatusCard(actions) }
@@ -30,6 +32,23 @@ fun LazyListScope.appsScreen(actions: PolicyActions) {
                 p.blockPrivateBrowsing,
             ) { on -> actions.change { it.copy(blockPrivateBrowsing = on) } }
             InstalledBrowsers(p.blockUnsupportedBrowsers)
+        }
+    }
+
+    item {
+        val ctx = LocalContext.current
+        val never = remember { IgnoredApps.neverIgnorable(BrowserRegistry(ctx).installedBrowsers()) }
+        val p = guardState().policy
+        SectionCard(
+            "Apps NoXXX ignores",
+            "NoXXX doesn't look inside checked apps at all: no image detection, private-screen, search or address " +
+                "checks. For chat apps and tools that get falsely flagged. Browsers and settings are always checked, " +
+                "blocked apps stay blocked, and the family filter still works everywhere. Adding an app needs an unlock.",
+            icon = Icons.Filled.DoNotDisturbOn,
+        ) {
+            AppPicker(p.ignoredApps, checkingLoosens = true, protectedPkgs = never, protectedLabel = "Always checked") { pkg, on ->
+                actions.change { if (on) it.copy(ignoredApps = it.ignoredApps + pkg) else it.copy(ignoredApps = it.ignoredApps - pkg) }
+            }
         }
     }
 

@@ -67,9 +67,13 @@ import androidx.compose.ui.unit.dp
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.Sensitivity
 import com.noxxx.guard.policy.formatMinutes
+import androidx.compose.material.icons.filled.DoNotDisturbOn
+import com.noxxx.guard.monitor.IgnoredApps
+import com.noxxx.guard.monitor.BrowserRegistry
+import androidx.compose.ui.platform.LocalContext
 
 private enum class Page {
-    WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, COOL_OFF, FINISH,
+    WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, IGNORED, COOL_OFF, FINISH,
 }
 
 private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
@@ -194,6 +198,18 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                         val p = guardState().policy
                         AppPicker(p.blockedApps) { pkg, on ->
                             actions.change { if (on) it.copy(blockedApps = it.blockedApps + pkg) else it.copy(blockedApps = it.blockedApps - pkg) }
+                        }
+                    }
+                    Page.IGNORED -> PageHeader(Icons.Filled.DoNotDisturbOn, "Apps to leave alone",
+                        "Optional. NoXXX won't look inside these apps at all: no image detection, private-screen, search or " +
+                            "address checks. Good for chat apps and work tools that get falsely flagged. Browsers and settings " +
+                            "are always checked, and the family filter still works everywhere. Once protection starts, adding " +
+                            "an app needs an unlock.") {
+                        val ctx = LocalContext.current
+                        val never = remember { IgnoredApps.neverIgnorable(BrowserRegistry(ctx).installedBrowsers()) }
+                        val p = guardState().policy
+                        AppPicker(p.ignoredApps, checkingLoosens = true, protectedPkgs = never, protectedLabel = "Always checked") { pkg, on ->
+                            actions.change { if (on) it.copy(ignoredApps = it.ignoredApps + pkg) else it.copy(ignoredApps = it.ignoredApps - pkg) }
                         }
                     }
                     Page.COOL_OFF -> CoolOffPage(actions)

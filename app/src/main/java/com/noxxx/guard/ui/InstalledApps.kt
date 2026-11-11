@@ -93,6 +93,7 @@ fun AppPicker(
     checked: Set<String>,
     checkingLoosens: Boolean = false,
     protectedPkgs: Set<String> = emptySet(),
+    protectedLabel: String = "Protected",
     onToggle: (String, Boolean) -> Unit,
 ) {
     val editable = LocalSettingsEditable.current
@@ -127,7 +128,7 @@ fun AppPicker(
                 leadingContent = { AppIcon(app.pkg) },
                 trailingContent = {
                     if (isProtected) {
-                        Text("Protected", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(protectedLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     } else {
                         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             if (!canToggle) LockedGlyph()

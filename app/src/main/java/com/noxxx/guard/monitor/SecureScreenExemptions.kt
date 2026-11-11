@@ -4,9 +4,8 @@ package com.noxxx.guard.monitor
  * Apps that legitimately use Android's FLAG_SECURE (anti-screenshot) for security reasons, not to
  * hide content. These are exempt from the private browsing / secure screen block.
  *
- * Banking, payment, password manager, 2FA, and secure storage apps. Messaging apps that use
- * FLAG_SECURE for media are already in CommApps and exempted from image scanning; they don't
- * need to be here.
+ * Banking, payment, password manager, 2FA, and secure storage apps, plus encrypted chats: messaging
+ * apps (CommApps) and the DMs of social apps, which block screenshots but have no private mode to hide.
  */
 object SecureScreenExemptions {
     val PACKAGES = setOf(
@@ -44,6 +43,10 @@ object SecureScreenExemptions {
         // Proton (encrypted email, VPN)
         "ch.protonmail.android",              // Proton Mail
         "ch.protonvpn.android",               // Proton VPN
+        // Social apps whose encrypted DMs block screenshots. Their feeds aren't secure screens, so they stay scanned.
+        "com.instagram.android",              // Instagram
+        "com.facebook.katana",                // Facebook
+        "com.instagram.barcelona",            // Threads
     )
 
     /**
@@ -51,5 +54,5 @@ object SecureScreenExemptions {
      * for real security, so they're exempt too, except browsers, whose private tabs stay blocked.
      */
     fun isExempt(pkg: String, isSystemApp: Boolean, isBrowser: Boolean, userAllowed: Set<String> = emptySet()) =
-        pkg in PACKAGES || pkg in userAllowed || (isSystemApp && !isBrowser)
+        pkg in PACKAGES || CommApps.isCommApp(pkg) || pkg in userAllowed || (isSystemApp && !isBrowser)
 }

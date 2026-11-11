@@ -56,6 +56,11 @@ data class Policy(
     val imageScan: Boolean = true,
     val sensitivity: Sensitivity = Sensitivity.BALANCED,
     val imageScanExemptApps: Set<String> = emptySet(),
+    /**
+     * Apps NoXXX doesn't look inside at all: no image detection, secure-screen, search-box or address checks.
+     * Browsers and system settings are always checked. Adding one is a loosening.
+     */
+    val ignoredApps: Set<String> = emptySet(),
     /** Apps whose anti-screenshot (secure) screens aren't treated as private browsing. Adding one is a loosening. */
     val secureScreenAllowedApps: Set<String> = emptySet(),
     /** Also run image detection in messaging and video-call apps (off by default; they false-alarm on your own camera). */
@@ -95,6 +100,8 @@ data class Policy(
             ?.let { add("Unblock ${it.size} app(s)") }
         (neverBlockApps - old.neverBlockApps).takeIf { it.isNotEmpty() }
             ?.let { add("Add ${it.size} app(s) to the never-block list") }
+        (ignoredApps - old.ignoredApps).takeIf { it.isNotEmpty() }
+            ?.let { add("Stop checking ${it.size} app(s) entirely") }
         (imageScanExemptApps - old.imageScanExemptApps).takeIf { it.isNotEmpty() }
             ?.let { add("Skip image detection in ${it.size} app(s)") }
         (secureScreenAllowedApps - old.secureScreenAllowedApps).takeIf { it.isNotEmpty() }

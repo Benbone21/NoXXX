@@ -119,7 +119,7 @@ class GuardAccessibilityService : AccessibilityService() {
             onForegroundApp(pkg)
         }
         if (pkg in TamperGuard.GUARDED_PACKAGES) runCatching { onGuardedEvent(event, pkg) }
-        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) runCatching { checkSearchField(event, pkg) }
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED && !isIgnored(pkg)) runCatching { checkSearchField(event, pkg) }
         scheduleWindowCheck()
     }
 
@@ -189,6 +189,7 @@ class GuardAccessibilityService : AccessibilityService() {
             if (isLockedScreen(root, pkg)) onLockedScreen(pkg)
             return
         }
+        if (isIgnored(pkg)) return
         val p = policy
 
         if (p.urlFilter && browsers.isSupported(pkg)) {
@@ -261,7 +262,7 @@ class GuardAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val sc = scanner ?: return
         val pkg = foreground ?: return
-        if (overlay.isShowing || !power.isInteractive || pkg in scanExempt) return
+        if (overlay.isShowing || !power.isInteractive || pkg in scanExempt || isIgnored(pkg)) return
         val p = policy
         val wantImage = p.imageScan && pkg !in p.imageScanExemptApps &&
             (p.scanMessagingApps || !CommApps.isCommApp(pkg))
@@ -349,6 +350,9 @@ class GuardAccessibilityService : AccessibilityService() {
     }
 
     private val systemApps = HashMap<String, Boolean>()
+
+    /** On the user's "ignore completely" list. Blocked-app rules still apply; browsers and settings are never ignored. */
+    private fun isIgnored(pkg: String) = IgnoredApps.isIgnored(pkg, policy.ignoredApps, browsers.isBrowser(pkg))
 
     private fun isSystemApp(pkg: String) = systemApps.getOrPut(pkg) {
         runCatching { packageManager.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM != 0 }

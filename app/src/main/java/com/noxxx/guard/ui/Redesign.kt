@@ -444,7 +444,7 @@ fun SectionRows(onSection: (ProtectionSection) -> Unit) {
     val p = state.policy
     val summaries = mapOf(
         ProtectionSection.WEB to "%,d sites".format(NoXXXApp.instance.blocklist.domainCount),
-        ProtectionSection.APPS to "${p.blockedApps.size} blocked",
+        ProtectionSection.APPS to "${p.blockedApps.size} blocked" + if (p.ignoredApps.isEmpty()) "" else ", ${p.ignoredApps.size} ignored",
         ProtectionSection.IMAGES to if (!p.imageScan) "Off" else {
             val level = p.sensitivity.name.lowercase().replaceFirstChar { it.uppercase() }
             val skipped = p.imageScanExemptApps.size

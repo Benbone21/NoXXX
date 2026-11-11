@@ -25,6 +25,12 @@ class SecureScreenExemptionsTest {
         assertTrue(SecureScreenExemptions.isExempt("com.azure.authenticator", isSystemApp = false, isBrowser = false))
     }
 
+    @Test fun encryptedChatsAreExempt() {
+        assertTrue(SecureScreenExemptions.isExempt("com.instagram.android", isSystemApp = false, isBrowser = false))
+        assertTrue(SecureScreenExemptions.isExempt("com.facebook.orca", isSystemApp = false, isBrowser = false))
+        assertTrue(SecureScreenExemptions.isExempt("org.thoughtcrime.securesms", isSystemApp = false, isBrowser = false))
+    }
+
     @Test fun appsTheUserAllowedAreExempt() {
         assertTrue(SecureScreenExemptions.isExempt("com.example.notes", false, false, userAllowed = setOf("com.example.notes")))
     }
