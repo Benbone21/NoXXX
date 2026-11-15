@@ -75,13 +75,13 @@ import androidx.compose.ui.platform.LocalContext
 
 private enum class Page {
     WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_LAST_SLIP, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, Q_STRICTNESS, Q_PHONE,
-    WORK_APPS, GOALS, LEVEL, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, IGNORED, COOL_OFF, FINISH,
+    GOALS, LEVEL, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, IGNORED, COOL_OFF, FINISH,
 }
 
 /** The interview: leaving it forward fills in the suggestions. */
 private val INTERVIEW = setOf(
     Page.Q_DURATION, Page.Q_FREQUENCY, Page.Q_ATTEMPTS, Page.Q_LAST_SLIP, Page.Q_HARD_TIMES, Page.Q_SOURCES,
-    Page.Q_SUPPORT, Page.Q_FAITH, Page.Q_STRICTNESS, Page.Q_PHONE, Page.WORK_APPS,
+    Page.Q_SUPPORT, Page.Q_FAITH, Page.Q_STRICTNESS, Page.Q_PHONE,
 )
 
 private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
@@ -97,7 +97,6 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
     val pages = Page.entries.filter {
         when (it) {
             Page.PRIVATE_DNS -> state.policy.requirePrivateDns
-            Page.WORK_APPS -> answers != null && Interview.WORK_APPS in answers.phone
             else -> true
         }
     }
@@ -193,7 +192,6 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                     Page.Q_FAITH -> FaithQuestion()
                     Page.Q_STRICTNESS -> StrictnessQuestion { go(1) }
                     Page.Q_PHONE -> PhoneQuestion()
-                    Page.WORK_APPS -> WorkAppsPage(actions)
                     Page.GOALS -> GoalsPage()
                     Page.LEVEL -> LevelPage(actions, installed)
                     Page.PROTECTIONS -> ProtectionsPage(actions, status)
@@ -225,15 +223,19 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                         }
                     }
                     Page.IGNORED -> PageHeader(Icons.Filled.DoNotDisturbOn, "Apps to leave alone",
-                        "Optional. NoXXX won't look inside these apps at all: no image detection, private-screen, search or " +
-                            "address checks. Good for chat apps and work tools that get falsely flagged. Browsers and settings " +
-                            "are always checked, and the family filter still works everywhere. Once protection starts, adding " +
-                            "an app needs an unlock.") {
+                        "Optional. Apps you need, like chat, work or school tools, that NoXXX should stay out of. They're " +
+                            "never blocked and never checked: no image, private-screen, search or address checks. Browsers " +
+                            "and settings are always checked, and the family filter still works everywhere. Once protection " +
+                            "starts, adding an app needs an unlock.") {
                         val ctx = LocalContext.current
                         val never = remember { IgnoredApps.neverIgnorable(BrowserRegistry(ctx).installedBrowsers()) }
                         val p = guardState().policy
                         AppPicker(p.ignoredApps, checkingLoosens = true, protectedPkgs = never, protectedLabel = "Always checked") { pkg, on ->
-                            actions.change { if (on) it.copy(ignoredApps = it.ignoredApps + pkg) else it.copy(ignoredApps = it.ignoredApps - pkg) }
+                            // One choice in setup: an app left alone is also never blocked.
+                            actions.change {
+                                if (on) it.copy(ignoredApps = it.ignoredApps + pkg, neverBlockApps = it.neverBlockApps + pkg, blockedApps = it.blockedApps - pkg)
+                                else it.copy(ignoredApps = it.ignoredApps - pkg, neverBlockApps = it.neverBlockApps - pkg)
+                            }
                         }
                     }
                     Page.COOL_OFF -> CoolOffPage(actions)

@@ -172,9 +172,8 @@ object Interview {
 
     const val VPN = "I use a VPN most of the time"
     const val OTHER_BROWSER = "I use a browser other than Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi or DuckDuckGo"
-    const val WORK_APPS = "I need certain apps for work or school"
     const val GAMING = "Games are a big part of my phone use"
-    val PHONE = listOf(VPN, OTHER_BROWSER, WORK_APPS, GAMING)
+    val PHONE = listOf(VPN, OTHER_BROWSER, GAMING)
 
     /** Social apps that commonly lead to explicit content. */
     val SOCIAL_APPS = setOf(

@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
@@ -38,7 +37,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -73,7 +71,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import com.noxxx.guard.NoXXXApp
-import com.noxxx.guard.monitor.EssentialApps
 import com.noxxx.guard.recovery.Answers
 import com.noxxx.guard.recovery.Attempts
 import com.noxxx.guard.recovery.Duration
@@ -284,20 +281,6 @@ fun PhoneQuestion() {
     Question(Icons.Filled.PhoneAndroid, "Anything about how you use your phone?",
         "So the suggested settings don't get in your way. Pick any that fit, or none.") {
         MultiChoice(Interview.PHONE, a.phone) { v -> setAnswers { it.copy(phone = v) } }
-    }
-}
-
-@Composable
-fun WorkAppsPage(actions: PolicyActions) {
-    val ctx = LocalContext.current
-    val essential = remember { EssentialApps.protectedSet(ctx) }
-    val p = guardState().policy
-    PageHeader(Icons.Filled.Work, "Apps you need",
-        "Pick the apps you need for work or school. They can never be blocked, so protection can't lock you out of " +
-            "them. You can change this later under Protection → Apps.") {
-        AppPicker(p.neverBlockApps, checkingLoosens = true, protectedPkgs = essential, protectedLabel = "Always allowed") { pkg, on ->
-            actions.change { if (on) it.copy(neverBlockApps = it.neverBlockApps + pkg) else it.copy(neverBlockApps = it.neverBlockApps - pkg) }
-        }
     }
 }
 
