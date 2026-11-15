@@ -49,13 +49,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.noxxx.guard.admin.GuardAdminReceiver
 import com.noxxx.guard.monitor.GuardAccessibilityService
+import com.noxxx.guard.monitor.GuardHealth
 import com.noxxx.guard.monitor.TamperGuard
 import com.noxxx.guard.policy.PrivateDnsProviders
 import com.noxxx.guard.web.PrivateDns
 
 /** Live status of everything setup needs. Cheap enough to rebuild every second. */
 class SetupStatus(context: Context) {
-    val accessibility = GuardAccessibilityService.isEnabled(context)
+    val guard = GuardAccessibilityService.health(context)
+    /** Switched on and actually running; on but stalled ("malfunctioning") doesn't count. */
+    val accessibility = guard == GuardHealth.ON
     val dns = PrivateDns.status(context)
     val canEnforceDns = PrivateDns.canEnforce(context)
     val admin = GuardAdminReceiver.isActive(context)
@@ -77,14 +80,24 @@ private fun activity() = LocalContext.current as MainActivity
 fun AccessibilitySetup(status: SetupStatus) {
     val ctx = LocalContext.current
     val activity = activity()
-    StatusLine(status.accessibility, if (status.accessibility) "The guard service is on" else "The guard service is off")
+    val xiaomi = Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true)
+    StatusLine(status.accessibility, when (status.guard) {
+        GuardHealth.ON -> "The guard service is on"
+        GuardHealth.STALLED -> "The guard service is switched on but not running"
+        GuardHealth.OFF -> "The guard service is off"
+    })
     if (status.accessibility) return
-    Hint("Open Accessibility, find NoXXX (often under \"Downloaded apps\" or \"Installed apps\"), and switch it on.")
+    if (status.guard == GuardHealth.STALLED) {
+        Hint("Android stopped it and didn't restart it, so Accessibility may say \"This service is malfunctioning\". " +
+            "Open Accessibility, tap NoXXX, and switch it off and back on.")
+    } else {
+        Hint("Open Accessibility, find NoXXX (often under \"Downloaded apps\" or \"Installed apps\"), and switch it on.")
+    }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { activity.openSetupScreen(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS), TamperGuard.Grace.FULL) }) {
             Text("Open Accessibility")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU || xiaomi) {
             OutlinedButton(onClick = {
                 activity.openSetupScreen(
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")),
@@ -98,6 +111,13 @@ fun AccessibilitySetup(status: SetupStatus) {
             "Switch greyed out?",
             "Android limits apps installed from outside the Play Store. Open App info, tap ⋮ in the top corner, " +
                 "choose \"Allow restricted settings\", then try again.",
+        )
+    }
+    if (xiaomi) {
+        TipCard(
+            "Xiaomi, Redmi or POCO?",
+            "HyperOS and MIUI stop background apps. In App info, turn on Autostart and set Battery saver to " +
+                "\"No restrictions\", then switch NoXXX off and on in Accessibility.",
         )
     }
 }

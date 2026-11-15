@@ -619,5 +619,8 @@ class GuardAccessibilityService : AccessibilityService() {
                 ?: return false
             return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
         }
+
+        /** The service runs in the app's process, so [isRunning] tells whether Android actually started it. */
+        fun health(context: Context): GuardHealth = GuardHealth.of(isEnabled(context), isRunning)
     }
 }

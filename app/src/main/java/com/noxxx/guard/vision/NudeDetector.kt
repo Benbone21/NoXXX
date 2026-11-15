@@ -48,9 +48,11 @@ class NudeDetector(context: Context) : Closeable {
         const val MODEL = "nudenet_320n_fp16.tflite"
 
         fun loadModel(context: Context): MappedByteBuffer {
-            val fd = context.assets.openFd(MODEL)
-            return FileInputStream(fd.fileDescriptor).use { stream ->
-                stream.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
+            // The mapping outlives the descriptor; closing it stops a leaked-fd warning on every load.
+            return context.assets.openFd(MODEL).use { fd ->
+                FileInputStream(fd.fileDescriptor).use { stream ->
+                    stream.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
+                }
             }
         }
     }

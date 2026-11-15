@@ -1,0 +1,6 @@
+- Recovery for Latter-day Saints: streak clock, daily goals, scripture of the day, journal, milestones.
+- Setup suggests a protection level (Light to Maximum) and goals that fit you.
+- New look, light and dark themes, new icon.
+- New image detector that only flags exposed body parts: far fewer false alarms.
+- "Apps NoXXX ignores" list; encrypted chats aren't treated as private tabs.
+- Warns when Android stops the guard (common on Xiaomi), with steps to fix.
