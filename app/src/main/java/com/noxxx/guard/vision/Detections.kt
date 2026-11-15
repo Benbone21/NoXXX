@@ -121,22 +121,22 @@ class Scores(detections: List<Detection>) {
             BodyPart.ANUS_EXPOSED, BodyPart.BUTTOCKS_EXPOSED,
         )
 
-        // Tuned on real false alarms from Instagram (clothed people, faces, shirtless men) and game art,
-        // whose explicit classes reach at most 0.48 (all MALE_GENITALIA_EXPOSED, on photos of men). NudeNet's
-        // own explicit sample scores 0.64-0.85 on its exposed parts.
+        // Tuned on real false alarms from Instagram and Facebook (clothed people, faces, shirtless men) and game
+        // art. MALE_GENITALIA_EXPOSED misfires most, up to 0.64 on ordinary Facebook posts, so it needs more.
+        // NudeNet's own explicit sample scores 0.64-0.85 on its exposed parts; a real Firefox hit scored 0.86.
         /** Per-class confidence needed to flag a scan. Classes not listed never flag at that level. */
         val THRESHOLDS: Map<Sensitivity, Map<BodyPart, Float>> = mapOf(
             Sensitivity.RELAXED to mapOf(
-                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.70f, BodyPart.MALE_GENITALIA_EXPOSED to 0.70f,
+                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.70f, BodyPart.MALE_GENITALIA_EXPOSED to 0.80f,
                 BodyPart.ANUS_EXPOSED to 0.70f,
             ),
             Sensitivity.BALANCED to mapOf(
-                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.55f, BodyPart.MALE_GENITALIA_EXPOSED to 0.60f,
+                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.55f, BodyPart.MALE_GENITALIA_EXPOSED to 0.75f,
                 BodyPart.ANUS_EXPOSED to 0.55f, BodyPart.FEMALE_BREAST_EXPOSED to 0.55f,
                 BodyPart.BUTTOCKS_EXPOSED to 0.60f,
             ),
             Sensitivity.STRICT to mapOf(
-                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.40f, BodyPart.MALE_GENITALIA_EXPOSED to 0.50f,
+                BodyPart.FEMALE_GENITALIA_EXPOSED to 0.40f, BodyPart.MALE_GENITALIA_EXPOSED to 0.65f,
                 BodyPart.ANUS_EXPOSED to 0.40f, BodyPart.FEMALE_BREAST_EXPOSED to 0.40f,
                 BodyPart.BUTTOCKS_EXPOSED to 0.45f,
                 BodyPart.FEMALE_GENITALIA_COVERED to 0.60f, BodyPart.BUTTOCKS_COVERED to 0.65f,

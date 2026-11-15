@@ -22,6 +22,9 @@ object CommApps {
         "org.thoughtcrime.securesms.molly",  // Molly (Signal fork)
         "im.vector.app", "chat.schildi.android", // Element / Matrix
         // Video calls / conferencing
+        "com.samsung.android.incallui",      // Samsung phone call screen (video calls)
+        "com.android.incallui",              // AOSP call screen
+        "com.google.android.dialer",         // Google Phone (video calls)
         "com.google.android.apps.tachyon",   // Google Meet (Duo)
         "com.google.android.apps.meetings",
         "us.zoom.videomeetings",

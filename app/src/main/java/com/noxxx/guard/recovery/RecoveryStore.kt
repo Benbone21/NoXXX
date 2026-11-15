@@ -32,6 +32,8 @@ data class RecoveryState(
     val answers: Answers? = null,
     /** Lockdown chosen during setup, started when protection starts. */
     val plannedLockdownDays: Int = 0,
+    /** Choices made by hand on the setup level and goal pages. */
+    val setup: SetupChoices = SetupChoices(),
 ) {
     fun isDone(goalId: String, day: LocalDate) = day.toEpochDay() in done[goalId].orEmpty()
 

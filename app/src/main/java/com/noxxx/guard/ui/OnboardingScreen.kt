@@ -67,14 +67,22 @@ import androidx.compose.ui.unit.dp
 import com.noxxx.guard.NoXXXApp
 import com.noxxx.guard.policy.Sensitivity
 import com.noxxx.guard.policy.formatMinutes
+import com.noxxx.guard.recovery.Interview
 import androidx.compose.material.icons.filled.DoNotDisturbOn
 import com.noxxx.guard.monitor.IgnoredApps
 import com.noxxx.guard.monitor.BrowserRegistry
 import androidx.compose.ui.platform.LocalContext
 
 private enum class Page {
-    WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, GOALS, LOCKDOWN, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, IGNORED, COOL_OFF, FINISH,
+    WELCOME, Q_DURATION, Q_FREQUENCY, Q_ATTEMPTS, Q_LAST_SLIP, Q_HARD_TIMES, Q_SOURCES, Q_SUPPORT, Q_FAITH, Q_STRICTNESS, Q_PHONE,
+    WORK_APPS, GOALS, LEVEL, PROTECTIONS, ACCESSIBILITY, PRIVATE_DNS, UNINSTALL, BATTERY, APPS, IGNORED, COOL_OFF, FINISH,
 }
+
+/** The interview: leaving it forward fills in the suggestions. */
+private val INTERVIEW = setOf(
+    Page.Q_DURATION, Page.Q_FREQUENCY, Page.Q_ATTEMPTS, Page.Q_LAST_SLIP, Page.Q_HARD_TIMES, Page.Q_SOURCES,
+    Page.Q_SUPPORT, Page.Q_FAITH, Page.Q_STRICTNESS, Page.Q_PHONE, Page.WORK_APPS,
+)
 
 private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 * 24 * 60)
 
@@ -85,16 +93,24 @@ private val COOL_OFF_CHOICES = listOf(60, 6 * 60, 24 * 60, 48 * 60, 72 * 60, 7 *
 @Composable
 fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int, onDone: () -> Unit) {
     val state = guardState()
-    val pages = Page.entries.filter { it != Page.PRIVATE_DNS || state.policy.requirePrivateDns }
+    val answers = recoveryState().answers
+    val pages = Page.entries.filter {
+        when (it) {
+            Page.PRIVATE_DNS -> state.policy.requirePrivateDns
+            Page.WORK_APPS -> answers != null && Interview.WORK_APPS in answers.phone
+            else -> true
+        }
+    }
     var current by rememberSaveable { mutableStateOf(Page.WELCOME) }
     val index = pages.indexOf(current).coerceAtLeast(0)
     val status = rememberSetupStatus(refresh)
 
     val installed = rememberInstalledApps().map { it.pkg }.toSet()
     fun go(delta: Int) {
+        val next = pages[(index + delta).coerceIn(0, pages.lastIndex)]
         // Leaving the interview forward: fill in goals, lockdown and protection from the answers.
-        if (current == Page.Q_FAITH && delta > 0) applyInterview(actions, installed)
-        current = pages[(index + delta).coerceIn(0, pages.lastIndex)]
+        if (delta > 0 && current in INTERVIEW && next !in INTERVIEW) applyInterview(actions, installed)
+        current = next
     }
     BackHandler(enabled = index > 0) { go(-1) }
 
@@ -110,7 +126,11 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                         modifier = Modifier.weight(1f),
                     )
                     if (current != Page.FINISH) {
-                        TextButton(onClick = { current = Page.FINISH }) { Text("Skip to end") }
+                        TextButton(onClick = {
+                            // Anything answered still counts; with no answers the stock settings stand.
+                            if (answers != null) applyInterview(actions, installed)
+                            current = Page.FINISH
+                        }) { Text("Skip to end") }
                     }
                 }
                 LinearProgressIndicator(
@@ -166,12 +186,16 @@ fun Onboarding(actions: PolicyActions, snackbar: SnackbarHostState, refresh: Int
                     Page.Q_DURATION -> DurationQuestion { go(1) }
                     Page.Q_FREQUENCY -> FrequencyQuestion { go(1) }
                     Page.Q_ATTEMPTS -> AttemptsQuestion { go(1) }
+                    Page.Q_LAST_SLIP -> LastSlipQuestion { go(1) }
                     Page.Q_HARD_TIMES -> HardTimesQuestion()
                     Page.Q_SOURCES -> SourcesQuestion()
-                    Page.Q_SUPPORT -> SupportQuestion { go(1) }
+                    Page.Q_SUPPORT -> SupportQuestion()
                     Page.Q_FAITH -> FaithQuestion()
+                    Page.Q_STRICTNESS -> StrictnessQuestion { go(1) }
+                    Page.Q_PHONE -> PhoneQuestion()
+                    Page.WORK_APPS -> WorkAppsPage(actions)
                     Page.GOALS -> GoalsPage()
-                    Page.LOCKDOWN -> LockdownPlanPage()
+                    Page.LEVEL -> LevelPage(actions, installed)
                     Page.PROTECTIONS -> ProtectionsPage(actions, status)
                     Page.ACCESSIBILITY -> PageHeader(Icons.Filled.Accessibility, "Turn on the guard",
                         "NoXXX uses Android's Accessibility service to read browser addresses, close blocked apps, check the " +
@@ -351,6 +375,8 @@ private fun FinishPage(status: SetupStatus, onDone: () -> Unit) {
         StatusLine(status.admin, "Uninstall protection")
         StatusLine(status.battery, "Battery exemption")
         StatusLine(true, "Cool-off: ${formatMinutes(p.coolOffMinutes)}")
+        val lockdown = recoveryState().plannedLockdownDays
+        if (lockdown > 0) StatusLine(true, "Lockdown: $lockdown days from when you start")
 
         Spacer(Modifier.padding(top = 8.dp))
         Button(onClick = { confirm = true }, enabled = ready, modifier = Modifier.fillMaxWidth()) { Text("Start protection") }

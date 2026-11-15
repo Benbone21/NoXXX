@@ -123,6 +123,18 @@ class DetectionsTest {
         assertFalse(photo.isFlagged(Sensitivity.STRICT))
     }
 
+    @Test fun facebookFalseBlockStaysBelowBalanced() {
+        // A real false block on an ordinary Facebook post.
+        val post = s(d(BodyPart.FACE_FEMALE, 0.78f), d(BodyPart.MALE_GENITALIA_EXPOSED, 0.64f))
+        assertFalse(post.isFlagged(Sensitivity.BALANCED))
+        assertFalse(post.isFlagged(Sensitivity.STRICT))
+    }
+
+    @Test fun firefoxRealHitStillBlocksAtBalanced() {
+        val page = s(d(BodyPart.FEMALE_BREAST_EXPOSED, 0.86f), d(BodyPart.FEMALE_BREAST_EXPOSED, 0.82f), d(BodyPart.BELLY_EXPOSED, 0.76f))
+        assertTrue(page.isFlagged(Sensitivity.BALANCED))
+    }
+
     @Test fun strictIsNeverLooserThanBalancedOrBalancedThanRelaxed() {
         val order = Sensitivity.entries
         for (i in 1 until order.size) {

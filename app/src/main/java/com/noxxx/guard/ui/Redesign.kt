@@ -88,7 +88,7 @@ private val MOODS = listOf("Rough", "Low", "Okay", "Good", "Great")
 
 /** Small uppercase section label, like "MILESTONES". */
 @Composable
-private fun Eyebrow(text: String) {
+internal fun Eyebrow(text: String) {
     Text(text.uppercase(), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.8.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

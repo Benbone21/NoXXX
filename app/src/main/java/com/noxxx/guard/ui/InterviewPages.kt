@@ -16,12 +16,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,7 +38,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
@@ -41,8 +53,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.LockClock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,27 +73,50 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import com.noxxx.guard.NoXXXApp
+import com.noxxx.guard.monitor.EssentialApps
 import com.noxxx.guard.recovery.Answers
 import com.noxxx.guard.recovery.Attempts
 import com.noxxx.guard.recovery.Duration
 import com.noxxx.guard.recovery.Frequency
+import com.noxxx.guard.recovery.GoalLibrary
+import com.noxxx.guard.recovery.GoalSection
 import com.noxxx.guard.recovery.Interview
+import com.noxxx.guard.recovery.LastSlip
+import com.noxxx.guard.recovery.LevelSettings
+import com.noxxx.guard.recovery.ProtectionLevel
+import com.noxxx.guard.recovery.Strictness
 
 /*
- * Setup interview: a few private questions, then recommended goals, lockdown and protection settings.
+ * Setup interview: a few private questions, then a suggested protection level, lockdown and goals.
  * Answers stay on the phone.
  */
-
-private fun answers() = NoXXXApp.instance.recovery.state.value.answers ?: Answers()
 
 private fun setAnswers(block: (Answers) -> Answers) =
     NoXXXApp.instance.recovery.update { it.copy(answers = block(it.answers ?: Answers())) }
 
-/** Fills in goals, the planned lockdown and protection settings from the answers. Setup mode only. */
+/**
+ * Fills in goals, the planned lockdown and protection settings from the answers. Safe to run again after
+ * answers change: anything picked by hand on the goal and level pages is kept. Setup mode only.
+ */
 fun applyInterview(actions: PolicyActions, installed: Set<String>) {
-    val rec = Interview.recommend(answers(), installed)
-    NoXXXApp.instance.recovery.update { it.copy(goals = rec.goals, plannedLockdownDays = rec.lockdownDays) }
-    actions.change { Interview.applyTo(it, rec) }
+    val recovery = NoXXXApp.instance.recovery
+    val s = recovery.state.value
+    val a = s.answers ?: Answers()
+    val rec = Interview.recommend(a, installed)
+    applyLevel(actions, Interview.bundle(s.setup.level ?: rec.level, a, installed).settings)
+    recovery.update { Interview.recompute(it, rec) }
+}
+
+/**
+ * Writes a level's settings into the policy. Unless [force]d, skips it when they match what was last written,
+ * so fine-tuning on the protection page survives going back through the interview.
+ */
+private fun applyLevel(actions: PolicyActions, settings: LevelSettings, force: Boolean = false) {
+    val recovery = NoXXXApp.instance.recovery
+    val previous = recovery.state.value.setup.applied
+    if (!force && settings == previous) return
+    actions.change { Interview.applyTo(it, settings, previous) }
+    recovery.update { it.copy(setup = it.setup.copy(applied = settings)) }
 }
 
 /** Starts protection, then any lockdown chosen during setup. */
@@ -115,6 +148,17 @@ private fun Question(icon: ImageVector, question: String, hint: String?, content
 /** A large tappable answer that lights up when chosen. */
 @Composable
 private fun OptionCard(text: String, selected: Boolean, onClick: () -> Unit) {
+    SelectableCard(selected, onClick) {
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            SelectedMark(selected)
+        }
+    }
+}
+
+/** The animated surface behind answer and level cards. */
+@Composable
+private fun SelectableCard(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val container by animateColorAsState(if (selected) colors.primaryContainer else colors.surfaceContainerHigh, label = "option")
     val border by animateDpAsState(if (selected) 2.dp else 0.dp, label = "border")
@@ -125,13 +169,14 @@ private fun OptionCard(text: String, selected: Boolean, onClick: () -> Unit) {
         shape = MaterialTheme.shapes.large,
         color = container,
         border = if (selected) BorderStroke(border, colors.primary) else null,
-    ) {
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            AnimatedVisibility(selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = "Selected", tint = colors.primary)
-            }
-        }
+        content = content,
+    )
+}
+
+@Composable
+private fun SelectedMark(selected: Boolean) {
+    AnimatedVisibility(selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+        Icon(Icons.Filled.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -178,6 +223,14 @@ fun AttemptsQuestion(next: () -> Unit) {
 }
 
 @Composable
+fun LastSlipQuestion(next: () -> Unit) {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.History, "When was the last time?", "No judgment here. It just helps pick a starting point.") {
+        SingleChoice(LastSlip.entries, a.lastSlip, { it.label }, { v -> setAnswers { it.copy(lastSlip = v) } }, next)
+    }
+}
+
+@Composable
 fun HardTimesQuestion() {
     val a = recoveryState().answers ?: Answers()
     Question(Icons.Filled.Bedtime, "When is it hardest?", "Pick any that fit.") {
@@ -194,22 +247,57 @@ fun SourcesQuestion() {
 }
 
 @Composable
-fun SupportQuestion(next: () -> Unit) {
+fun SupportQuestion() {
     val a = recoveryState().answers ?: Answers()
-    Question(Icons.Filled.Person, "Is there someone you trust to hold a partner password?",
-        "A parent, spouse, bishop or close friend. They can approve a change or end a lockdown early.") {
-        SingleChoice(listOf(true, false), a.hasSupport, { if (it) "Yes, I have someone" else "Not right now" },
-            { v -> setAnswers { it.copy(hasSupport = v) } }, next)
+    // Older answers only said yes or no; show what that was read as until it's answered again.
+    val shown = a.support.ifEmpty { a.supporters }
+    Question(Icons.Filled.Groups, "Who knows and supports you?",
+        "Pick any that fit. Later you can let one of them hold a partner password.") {
+        Interview.SUPPORT.forEach { o ->
+            OptionCard(o, o in shown) {
+                setAnswers { it.copy(support = Interview.toggleSupport(shown, o), legacyHasSupport = false) }
+            }
+        }
     }
 }
 
 @Composable
 fun FaithQuestion() {
     val a = recoveryState().answers ?: Answers()
-    rememberInstalledApps() // start loading, so suggested app blocks are ready on the next page
     Question(Icons.Filled.Favorite, "Which daily habits do you want to build?",
-        "Recovery goes better with help from heaven. These become your daily goals.") {
+        "Recovery goes better with help from heaven. These shape your daily goals.") {
         MultiChoice(Interview.FAITH, a.faith) { v -> setAnswers { it.copy(faith = v) } }
+    }
+}
+
+@Composable
+fun StrictnessQuestion(next: () -> Unit) {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.Lock, "How strict do you want it?", "This counts the most. You can change any setting before you start.") {
+        SingleChoice(Strictness.entries, a.strictness, { it.label }, { v -> setAnswers { it.copy(strictness = v) } }, next)
+    }
+}
+
+@Composable
+fun PhoneQuestion() {
+    val a = recoveryState().answers ?: Answers()
+    Question(Icons.Filled.PhoneAndroid, "Anything about how you use your phone?",
+        "So the suggested settings don't get in your way. Pick any that fit, or none.") {
+        MultiChoice(Interview.PHONE, a.phone) { v -> setAnswers { it.copy(phone = v) } }
+    }
+}
+
+@Composable
+fun WorkAppsPage(actions: PolicyActions) {
+    val ctx = LocalContext.current
+    val essential = remember { EssentialApps.protectedSet(ctx) }
+    val p = guardState().policy
+    PageHeader(Icons.Filled.Work, "Apps you need",
+        "Pick the apps you need for work or school. They can never be blocked, so protection can't lock you out of " +
+            "them. You can change this later under Protection → Apps.") {
+        AppPicker(p.neverBlockApps, checkingLoosens = true, protectedPkgs = essential, protectedLabel = "Always allowed") { pkg, on ->
+            actions.change { if (on) it.copy(neverBlockApps = it.neverBlockApps + pkg) else it.copy(neverBlockApps = it.neverBlockApps - pkg) }
+        }
     }
 }
 
@@ -217,12 +305,27 @@ fun FaithQuestion() {
 fun GoalsPage() {
     val store = NoXXXApp.instance.recovery
     val state = recoveryState()
+    val reasons = remember(state.answers) {
+        Interview.suggestGoals(state.answers ?: Answers()).associate { it.goal.id to it.reason }
+    }
+    val checked = state.goals.map { it.id }.toSet()
     var newGoal by remember { mutableStateOf("") }
     PageHeader(Icons.Filled.TaskAlt, "Your daily goals",
-        "Suggested from your answers. Check them off on the Today tab each day. Remove any, or add your own.") {
-        state.goals.forEach { g ->
+        "A few are checked to fit your answers. Check off the ones you do on the Today tab each day. Change any, or add your own.") {
+        Hint("${checked.size} checked. A handful is plenty to start; you can add more later.")
+        GoalSection.entries.forEach { section ->
+            Eyebrow(section.label)
+            GoalLibrary.all.filter { it.section == section }.forEach { e ->
+                GoalRow(e.goal.title, reasons[e.goal.id], e.goal.id in checked) { on ->
+                    store.update { Interview.checkGoal(it, e.goal, on) }
+                }
+            }
+        }
+        val own = state.goals.filter { !GoalLibrary.isBuiltIn(it.id) }
+        Eyebrow("Your own")
+        own.forEach { g ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(g.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                Text(g.title, Modifier.weight(1f).padding(start = 12.dp), style = MaterialTheme.typography.bodyLarge)
                 IconButton(onClick = { store.update { it.removeGoal(g.id) } }) {
                     Icon(Icons.Filled.Delete, contentDescription = "Remove ${g.title}")
                 }
@@ -230,7 +333,7 @@ fun GoalsPage() {
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(newGoal, { newGoal = it }, Modifier.weight(1f), singleLine = true,
-                placeholder = { Text("Add a goal, like Go to the temple") })
+                placeholder = { Text("Add your own, like Call my brother") })
             IconButton(onClick = {
                 store.update { it.addGoal(newGoal, "goal-${System.currentTimeMillis()}") }
                 newGoal = ""
@@ -239,28 +342,80 @@ fun GoalsPage() {
     }
 }
 
+@Composable
+private fun GoalRow(title: String, reason: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (reason != null) Hint(reason)
+        }
+    }
+}
+
 private val LOCKDOWN_OPTIONS = listOf(0, 7, 14, 30, 90)
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun LockdownPlanPage() {
+fun LevelPage(actions: PolicyActions, installed: Set<String>) {
     val store = NoXXXApp.instance.recovery
     val state = recoveryState()
-    val rec = remember(state.answers) { Interview.recommend(state.answers ?: Answers(), emptySet()) }
-    PageHeader(Icons.Filled.LockClock, "Start with a lockdown?",
-        "A lockdown freezes every setting for a set time once you start protection, so nothing can be loosened " +
-            "on a hard day. It can be extended but not shortened.") {
+    val a = state.answers ?: Answers()
+    val rec = remember(a, installed) { Interview.recommend(a, installed) }
+    val chosen = state.setup.level ?: rec.level
+    val notes = remember(chosen, a, installed) { Interview.bundle(chosen, a, installed).notes }
+    PageHeader(Icons.Filled.Security, "Your protection level",
+        "Suggested from your answers. Pick the one that feels right; you can fine-tune each setting next.") {
+        ProtectionLevel.entries.forEach { level ->
+            LevelCard(level, selected = level == chosen, suggested = level == rec.level, why = rec.why) {
+                store.update { it.copy(setup = it.setup.copy(level = level, lockdownDays = null), plannedLockdownDays = level.lockdownDays) }
+                applyLevel(actions, Interview.bundle(level, a, installed).settings, force = true)
+            }
+        }
+        if (notes.isNotEmpty()) {
+            Text("Fitted to your phone", style = MaterialTheme.typography.titleSmall)
+            notes.forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium) }
+        }
+        HorizontalDivider()
+        Text("Lockdown", style = MaterialTheme.typography.titleSmall)
+        Hint("A lockdown freezes every setting for a set time once you start protection, so nothing can be loosened " +
+            "on a hard day. It can be extended but not shortened.")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LOCKDOWN_OPTIONS.forEach { d ->
                 FilterChip(
                     selected = state.plannedLockdownDays == d,
-                    onClick = { store.update { it.copy(plannedLockdownDays = d) } },
-                    label = { Text((if (d == 0) "No lockdown" else "$d days") + if (d == rec.lockdownDays) " · suggested" else "") },
+                    onClick = { store.update { it.copy(setup = it.setup.copy(lockdownDays = d), plannedLockdownDays = d) } },
+                    label = { Text((if (d == 0) "No lockdown" else "$d days") + if (d == chosen.lockdownDays) " · suggested" else "") },
                 )
             }
         }
-        Text("Why these suggestions", style = MaterialTheme.typography.titleSmall)
-        rec.why.forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium) }
-        Hint("Next, the recommended protection settings are already filled in. Look them over and change anything.")
+    }
+}
+
+@Composable
+private fun LevelCard(level: ProtectionLevel, selected: Boolean, suggested: Boolean, why: List<String>, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    SelectableCard(selected, onClick) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (suggested) {
+                Text("SUGGESTED FOR YOU", style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.8.sp), color = colors.primary)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(level.label, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                SelectedMark(selected)
+            }
+            Text(level.description, style = MaterialTheme.typography.bodyMedium)
+            Text(level.summary, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            if (suggested && why.isNotEmpty()) {
+                Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    why.forEach { Text("•  $it", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
+                }
+            }
+        }
     }
 }
