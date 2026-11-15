@@ -1,0 +1,1 @@
+- Setup asks only once which apps to leave alone. Apps you pick there are never blocked and never checked.
