@@ -161,6 +161,12 @@ still blocking porn, use your own filter:
    (like `abc123.dns.nextdns.io`). Also add the sites under **Allowed sites**, since NoXXX's own list may
    block them too.
 
+**No account:** [RethinkDNS](https://rethinkdns.com/configure) encodes the blocklists you pick in the hostname
+itself. Pick lists that include an adult list (for example HaGeZi Multi Pro + OISD NSFW + Adult (ShadowWhisperer)),
+switch the endpoint to **DoT** and paste the hostname, like `1-abc123.max.rethinkdns.com`. There's no allowlist,
+so if a list blocks a site you need, use [Search](https://rethinkdns.com/search) to see which list it is and
+swap it out. (Adult (StevenBlack) blocks 1337x.to, for example.)
+
 NoXXX checks every few minutes that the custom filter still blocks well-known adult sites. If porn
 blocking gets switched off in the profile, NoXXX treats Private DNS as off: browsers pause until it's
 fixed. Switching to a custom filter, or allowing sites, needs an unlock once protection has started.

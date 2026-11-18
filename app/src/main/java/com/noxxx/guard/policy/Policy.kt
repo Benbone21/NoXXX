@@ -21,11 +21,16 @@ object PrivateDnsProviders {
     fun isApproved(host: String?) = host != null && host.lowercase().trimEnd('.') in all
 
     /**
-     * A personal NextDNS or Control D hostname: a filter whose blocklist and allow list the user controls,
-     * so sites like torrent indexes can be allowed while porn stays blocked. Only counts as filtering
+     * A personal NextDNS, Control D or RethinkDNS hostname: a filter whose blocklists the user picks,
+     * so sites like torrent indexes can stay reachable while porn stays blocked. Only counts as filtering
      * while [com.noxxx.guard.web.DnsCanary] confirms it really blocks adult sites.
+     *
+     * RethinkDNS needs no account: the chosen blocklists are encoded in the first label, like
+     * `1-cbbaaiaqaaqaa.max.rethinkdns.com` (DNS-over-TLS hostname from rethinkdns.com/configure).
      */
-    private val CUSTOM = Regex("^[a-z0-9-]+\\.dns\\.(nextdns\\.io|controld\\.com)$")
+    private val CUSTOM = Regex(
+        "^(?:[a-z0-9-]+\\.dns\\.(?:nextdns\\.io|controld\\.com)|1-[a-z0-9]+\\.max\\.rethinkdns\\.com)$"
+    )
 
     fun isCustom(host: String?) = host != null && CUSTOM.matches(host.lowercase().trimEnd('.'))
 }
@@ -85,7 +90,9 @@ data class Policy(
         flag(scanMessagingApps, old.scanMessagingApps, "image detection in messaging apps")
         flag(tamperProtection, old.tamperProtection, "tamper protection")
 
-        if (privateDnsHost != old.privateDnsHost && !PrivateDnsProviders.isApproved(privateDnsHost)) {
+        // The host only matters while Private DNS is required, so changing it while the requirement is off
+        // (on its own or together with turning it on) loosens nothing.
+        if (old.requirePrivateDns && privateDnsHost != old.privateDnsHost && !PrivateDnsProviders.isApproved(privateDnsHost)) {
             add("Use unapproved Private DNS host $privateDnsHost")
         }
         (old.customBlockedDomains - customBlockedDomains).takeIf { it.isNotEmpty() }

@@ -280,7 +280,7 @@ private fun CustomDnsOption(status: SetupStatus, actions: PolicyActions) {
     ) {
         RadioButton(selected = selected, onClick = null)
         Column(Modifier.padding(start = 12.dp)) {
-            Text("Custom filter: NextDNS or Control D", style = MaterialTheme.typography.bodyLarge)
+            Text("Custom filter: NextDNS, Control D or RethinkDNS", style = MaterialTheme.typography.bodyLarge)
             Text("Your own blocklist and allowed sites. Must block adult sites to count.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -289,7 +289,9 @@ private fun CustomDnsOption(status: SetupStatus, actions: PolicyActions) {
     Column(Modifier.padding(start = 36.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Hint("1. Make a free profile at nextdns.io (or controld.com) and turn on porn blocking (NextDNS: Parental " +
             "Control → Porn). 2. Add sites you need to its Allowlist. 3. Paste the DNS-over-TLS hostname here, " +
-            "like abc123.dns.nextdns.io. 4. Also add those sites to Allowed sites below, since NoXXX's own list may block them too.")
+            "like abc123.dns.nextdns.io. 4. Also add those sites to Allowed sites below, since NoXXX's own list may block them too. " +
+            "No account: at rethinkdns.com/configure pick blocklists that include an adult list, switch to DoT and paste " +
+            "the hostname, like 1-abc123.max.rethinkdns.com.")
         OutlinedTextField(
             value = input,
             onValueChange = { input = it.trim().lowercase() },
@@ -300,7 +302,7 @@ private fun CustomDnsOption(status: SetupStatus, actions: PolicyActions) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 if (PrivateDnsProviders.isCustom(input)) actions.change { it.copy(privateDnsHost = input) }
-                else actions.message("Enter a hostname ending in .dns.nextdns.io or .dns.controld.com")
+                else actions.message("Enter a hostname ending in .dns.nextdns.io, .dns.controld.com or .max.rethinkdns.com")
             }) { Text("Use this filter") }
             if (status.dns.custom) {
                 TextButton(onClick = {
