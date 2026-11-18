@@ -99,7 +99,7 @@ private fun blockCopy(kind: BlockKind, detail: String): Pair<String, String> = w
     BlockKind.IMAGE -> "Screen covered" to "Image detection flagged explicit content in $detail."
     BlockKind.PRIVATE_BROWSING -> "Private browsing is blocked" to "Private or incognito tabs can't be checked. Use a normal tab."
     BlockKind.BROWSER -> "Use a supported browser" to
-        "$detail can't be monitored. Use Chrome, Firefox, Samsung Internet, Edge, Brave, Vivaldi or DuckDuckGo."
+        "$detail can't be monitored. Use Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi, DuckDuckGo or Mi Browser."
     BlockKind.DNS_OFF -> "Web filter is off" to
         "Private DNS isn't set to a family filter, so browsers are paused. Open NoXXX to fix it."
     BlockKind.SETTINGS -> "Protected setting" to

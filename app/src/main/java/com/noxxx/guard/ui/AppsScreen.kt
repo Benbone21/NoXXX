@@ -23,7 +23,7 @@ fun LazyListScope.appsScreen(actions: PolicyActions) {
         SectionCard("Browsers", icon = Icons.Filled.Public) {
             ToggleRow(
                 "Block unsupported browsers",
-                "Browsers NoXXX can't read the address bar of are closed. Supported: Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi, DuckDuckGo.",
+                "Browsers NoXXX can't read the address bar of are closed. Supported: Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi, DuckDuckGo, Mi Browser.",
                 p.blockUnsupportedBrowsers,
             ) { on -> actions.change { it.copy(blockUnsupportedBrowsers = on) } }
             ToggleRow(

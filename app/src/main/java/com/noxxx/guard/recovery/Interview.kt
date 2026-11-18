@@ -171,7 +171,7 @@ object Interview {
     val FAITH = listOf(PRAYER, SCRIPTURES, COME_FOLLOW_ME, JOURNAL, SERVICE)
 
     const val VPN = "I use a VPN most of the time"
-    const val OTHER_BROWSER = "I use a browser other than Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi or DuckDuckGo"
+    const val OTHER_BROWSER = "I use a browser other than Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, Vivaldi, DuckDuckGo or Mi Browser"
     const val GAMING = "Games are a big part of my phone use"
     val PHONE = listOf(VPN, OTHER_BROWSER, GAMING)
 

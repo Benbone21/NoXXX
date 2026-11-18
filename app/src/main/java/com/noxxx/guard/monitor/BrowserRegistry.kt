@@ -43,9 +43,11 @@ class BrowserRegistry(private val context: Context) {
             "com.duckduckgo.mobile.android",
             "com.vivaldi.browser",
             "com.opera.browser",
+            // Xiaomi: Mi Browser (global), the stock MIUI/HyperOS browser, and Mint
+            "com.mi.globalbrowser", "com.android.browser", "com.mi.globalbrowser.mini",
         )
 
-        /** View ids of address bars across Chromium, Firefox, Samsung and DuckDuckGo builds. */
+        /** View ids of address bars across Chromium, Firefox, Samsung, DuckDuckGo and Xiaomi builds. */
         private val ADDRESS_BAR_IDS = listOf(
             "url_bar",
             "url_field",
@@ -56,6 +58,10 @@ class BrowserRegistry(private val context: Context) {
             "location_bar_edit_text",
             "custom_tab_toolbar_url_bar_text",
             "omnibarTextInput",
+            // Mi Browser: "url" while typing, the others while a page is showing
+            "url",
+            "url_bar_title",
+            "search_hint",
         )
     }
 }
